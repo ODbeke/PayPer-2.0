@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  Terminal, Check, AlertTriangle, AlertCircle
+  Check, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import './index.css';
@@ -33,11 +33,6 @@ interface ServiceListing {
 }
 
 
-interface ConsoleLog {
-  timestamp: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'consensus';
-  message: string;
-}
 
 const SLIDES = [
   {
@@ -151,7 +146,6 @@ export default function App() {
   const [deposit, setDeposit] = useState<number>(0);
   const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -168,18 +162,10 @@ export default function App() {
   const [testCriteria, setTestCriteria] = useState('Must mention Layer 2 and Rollups. Must be exactly 2 sentences.');
   const [testResult, setTestResult] = useState<{ output: string; time: number; claimId?: string } | null>(null);
 
-  const consoleEndRef = useRef<HTMLDivElement>(null);
-
   // --- Console Logging Helper ---
-  const log = useCallback((message: string, type: ConsoleLog['type'] = 'info') => {
-    const time = new Date().toLocaleTimeString();
-    setConsoleLogs(prev => [...prev, { timestamp: time, type, message }]);
-  }, []);
-
-  // Auto-scroll console
-  useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [consoleLogs]);
+  const log = (message: string, type: string = 'info') => {
+    console.log(`[${type.toUpperCase()}] ${message}`);
+  };
 
   // --- Load / Create Burner Wallet ---
   useEffect(() => {
@@ -1155,39 +1141,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
-                {/* GenVM Monospace Active Console Visualizer */}
-                <div style={{ marginTop: '40px' }}>
-                  <div className="workbench-section-header">
-                    <h3 className="section-h2" style={{ fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Terminal size={18} style={{ color: 'var(--accent-cyan)' }} />
-                      GenVM Active Consensus Console
-                    </h3>
-                    <p className="section-p">Real-time validator votes, block logs, and judge jury decisions on Studionet</p>
-                  </div>
-                  <div className="console-terminal" style={{ minHeight: '180px', maxHeight: '240px' }}>
-                    {consoleLogs.length === 0 ? (
-                      <div style={{ color: 'var(--ink-tertiary)', textAlign: 'center', marginTop: '70px' }}>
-                        --- Console Idle. Call services or request deposits to display active consensus logs. ---
-                      </div>
-                    ) : (
-                      consoleLogs.map((item, idx) => (
-                        <div key={idx} className="log-row">
-                          <span className="log-t">[{item.timestamp}]</span>
-                          <span className={`log-tag ${
-                            item.type === 'success' ? 'POLICY_APPROVED' :
-                            item.type === 'warning' ? 'X402_CHALLENGE' :
-                            item.type === 'consensus' ? 'PLANNING' : 'DISCOVERY'
-                          }`}>
-                            {item.type.toUpperCase()}
-                          </span>
-                          <span className="log-text">{item.message}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
               </div>
             </div>
           )}
