@@ -112,6 +112,10 @@ const SLIDES = [
   }
 ];
 
+const log = (message: string, type: string = 'info') => {
+  console.log(`[${type.toUpperCase()}] ${message}`);
+};
+
 export default function App() {
   // Navigation Page State: 'landing' | 'app' | 'deck'
   const [currentPage, setCurrentPage] = useState(() => {
@@ -167,10 +171,6 @@ export default function App() {
   const [testCriteria, setTestCriteria] = useState('Must mention Layer 2 and Rollups. Must be exactly 2 sentences.');
   const [testResult, setTestResult] = useState<{ output: string; time: number; claimId?: string } | null>(null);
 
-  // --- Console Logging Helper ---
-  const log = (message: string, type: string = 'info') => {
-    console.log(`[${type.toUpperCase()}] ${message}`);
-  };
 
   // --- Load / Create Burner Wallet ---
   useEffect(() => {
@@ -197,7 +197,7 @@ export default function App() {
       privateKey: walletInstance.privateKey,
       balance: 0
     });
-  }, [log]);
+  }, []);
 
   // --- Fetch Config and Balances ---
   const fetchConfig = useCallback(async () => {
@@ -213,7 +213,7 @@ export default function App() {
     } catch (e) {
       log(`Failed to connect to backend bridge server: ${e}`, 'error');
     }
-  }, [log]);
+  }, []);
 
   const updateBalancesAndData = useCallback(async () => {
     if (!wallet) return;
