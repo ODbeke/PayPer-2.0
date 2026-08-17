@@ -1,9 +1,13 @@
 import sys
 import os
 import json
+import time
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+GET_CACHE = {}
+CACHE_TTL_SECS = 15
 
 # Add current workspace to path to resolve any contract imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -130,8 +134,15 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
 
             elif path == "/api/registry/services":
                 if not deployed_contracts["registry"]:
-                    self.send_json(200, [])
+                      self.send_json(200, [])
+                      return
+                
+                cache_key = "services"
+                now = time.time()
+                if cache_key in GET_CACHE and now - GET_CACHE[cache_key]["time"] < CACHE_TTL_SECS:
+                    self.send_json(200, GET_CACHE[cache_key]["data"])
                     return
+
                 services = client.read_contract(
                     address=deployed_contracts["registry"],
                     function_name="get_services"
@@ -151,6 +162,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                         "rating": int(s["rating"]),
                         "active": s["active"]
                     })
+                GET_CACHE[cache_key] = {
+                    "time": now,
+                    "data": formatted_services
+                }
                 self.send_json(200, formatted_services)
                 return
 
@@ -162,12 +177,24 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["escrow"]:
                     self.send_json(400, {"error": "Escrow not deployed"})
                     return
+                
+                cache_key = f"deposit_{user}"
+                now = time.time()
+                if cache_key in GET_CACHE and now - GET_CACHE[cache_key]["time"] < CACHE_TTL_SECS:
+                    self.send_json(200, GET_CACHE[cache_key]["data"])
+                    return
+
                 dep = client.read_contract(
                     address=deployed_contracts["escrow"],
                     function_name="get_deposit",
                     args=[user]
                 )
-                self.send_json(200, {"deposit": int(dep)})
+                res_data = {"deposit": int(dep)}
+                GET_CACHE[cache_key] = {
+                    "time": now,
+                    "data": res_data
+                }
+                self.send_json(200, res_data)
                 return
 
             elif path == "/api/escrow/allowance":
@@ -179,12 +206,24 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["escrow"]:
                     self.send_json(400, {"error": "Escrow not deployed"})
                     return
+                
+                cache_key = f"allowance_{buyer}_{seller}"
+                now = time.time()
+                if cache_key in GET_CACHE and now - GET_CACHE[cache_key]["time"] < CACHE_TTL_SECS:
+                    self.send_json(200, GET_CACHE[cache_key]["data"])
+                    return
+
                 allowance = client.read_contract(
                     address=deployed_contracts["escrow"],
                     function_name="get_allowance",
                     args=[buyer, seller]
                 )
-                self.send_json(200, {"allowance": int(allowance)})
+                res_data = {"allowance": int(allowance)}
+                GET_CACHE[cache_key] = {
+                    "time": now,
+                    "data": res_data
+                }
+                self.send_json(200, res_data)
                 return
 
             elif path == "/api/escrow/claims":
@@ -206,6 +245,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
             self.send_error_json(e)
 
     def do_POST(self):
+        GET_CACHE.clear()
         parsed_path = urlparse(self.path)
         path = parsed_path.path
 
