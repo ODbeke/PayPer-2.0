@@ -47,8 +47,6 @@ except ModuleNotFoundError:
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
         public = MockPublicDecorator()
-        def transfer(self, to_addr, amt):
-            pass
         def get_address(self):
             return "0x0000000000000000000000000000000000000000"
     gl = MockGL()
@@ -67,6 +65,13 @@ try:
     u256
 except NameError:
     u256 = int
+
+@gl.evm.contract_interface
+class FaucetRecipient:
+    class View:
+        pass
+    class Write:
+        pass
 
 class PayPerFaucet(gl.Contract):
     owner: Address
@@ -98,8 +103,8 @@ class PayPerFaucet(gl.Contract):
         # Verify contract has enough state-tracked balance
         assert self.reservoir_balance >= payout_amt, "Faucet reservoir is dry! Please notify the owner."
 
-        # Execute transfer
-        gl.transfer(Address(clean_addr), payout_amt)
+        # Execute transfer via EVM emit_transfer call (stable SDK method)
+        FaucetRecipient(Address(clean_addr)).emit_transfer(value=payout_amt)
 
         # Update balance and last request date
         self.reservoir_balance -= payout_amt
