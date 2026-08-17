@@ -959,7 +959,7 @@ export default function App() {
               <div className="dashboard-main-content">
                 <div className="workbench-section-header">
                   <h2 className="section-h2">On-Chain Registered Capabilities ({filteredListings.length})</h2>
-                  <p className="section-p">Autonomous endpoints queryable via HTTP 402 challenges backed by GenLayer Escrow</p>
+                  <p className="section-p">Autonomous capability endpoints queryable via off-chain signed vouchers backed by GenLayer Escrow</p>
                 </div>
 
                 {fetchError && (
