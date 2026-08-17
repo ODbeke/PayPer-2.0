@@ -42,11 +42,15 @@ except ModuleNotFoundError:
         write = MockWriteDecorator()
         def view(self, func):
             return func
+    class MockEVM:
+        def contract_interface(self, cls):
+            return cls
     class MockGL:
         message = MockMessage()
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
         public = MockPublicDecorator()
+        evm = MockEVM()
         def get_address(self):
             return "0x0000000000000000000000000000000000000000"
     gl = MockGL()
