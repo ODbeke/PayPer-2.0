@@ -11,25 +11,47 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     from genlayer_py import create_client, create_account
     from eth_account import Account
+    from genlayer_py.chains import localnet, studionet, testnet_asimov, testnet_bradbury
 except ImportError:
     print("Error: genlayer SDK not found in path.")
     sys.exit(1)
 
-# Default Local RPC URL
-RPC_URL = "http://127.0.0.1:4000/api"
+# Helper to dynamically read network from gltest.config.yaml
+def get_config_network():
+    yaml_path = Path(__file__).parent / "gltest.config.yaml"
+    if yaml_path.exists():
+        try:
+            with open(yaml_path, "r") as f:
+                for line in f:
+                    if line.strip().startswith("network:"):
+                        return line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+    return "localnet"
+
+net_name = get_config_network()
+chain_map = {
+    "localnet": localnet,
+    "studionet": studionet,
+    "testnet_asimov": testnet_asimov,
+    "testnet_bradbury": testnet_bradbury
+}
+selected_chain = chain_map.get(net_name, localnet)
+print(f"Active network profile from configuration: {net_name}")
 
 # Initialize deterministic deployer account for backend contract deployments
 deployer_private_key = "0x" + "b" * 64  # Deterministic private key
 deployer_account = Account.from_key(deployer_private_key)
 
-print(f"Initializing GenLayer client with deployer account: {deployer_account.address}")
-client = create_client(endpoint=RPC_URL, account=deployer_account)
+print(f"Initializing GenLayer client on {net_name} with account: {deployer_account.address}")
+client = create_client(chain=selected_chain, account=deployer_account)
 
-try:
-    print(f"Funding deployer account on localnet...")
-    client.fund_account(deployer_account.address, 1000 * 10**18)
-except Exception as e:
-    print(f"Warning: could not fund account on localnet: {e}")
+if net_name == "localnet":
+    try:
+        print(f"Funding deployer account on localnet...")
+        client.fund_account(deployer_account.address, 1000 * 10**18)
+    except Exception as e:
+        print(f"Warning: could not fund account on localnet: {e}")
 
 CONFIG_PATH = Path(__file__).parent / "contracts.json"
 
@@ -230,13 +252,17 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     args=[escrow_address]
                 )
 
-                # Fund Faucet with 100 GEN
-                print("Funding Faucet with 100 GEN...")
-                client.write_contract(
-                    address=faucet_address,
-                    function_name="deposit_faucet_funds",
-                    value=100 * 10**18
-                )
+                # Fund Faucet with 100 GEN (Only on localnet)
+                if net_name == "localnet":
+                    print("Funding Faucet with 100 GEN...")
+                    try:
+                        client.write_contract(
+                            address=faucet_address,
+                            function_name="deposit_faucet_funds",
+                            value=100 * 10**18
+                        )
+                    except Exception as e:
+                        print(f"Warning: could not fund faucet: {e}")
 
                 save_config()
                 self.send_json(200, deployed_contracts)
@@ -271,8 +297,8 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                # Fund target seller wallet automatically to allow execution fees if needed
-                client.fund_account(acc.address, 10 * 10**18)
+                if net_name == "localnet":
+                    client.fund_account(acc.address, 10 * 10**18)
 
                 tx = client.write_contract(
                     address=deployed_contracts["registry"],
@@ -293,8 +319,8 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                # Fund buyer if needed
-                client.fund_account(acc.address, 10 * 10**18)
+                if net_name == "localnet":
+                    client.fund_account(acc.address, 10 * 10**18)
 
                 tx = client.write_contract(
                     address=deployed_contracts["escrow"],
@@ -374,7 +400,6 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     account=acc,
                     args=[claim_id]
                 )
-                # Wait for finalization to trigger stats callback
                 client.wait_for_transaction_receipt(tx_hash)
                 self.send_json(200, {"tx_hash": tx_hash})
                 return
