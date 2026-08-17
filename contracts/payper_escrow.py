@@ -51,11 +51,15 @@ except ModuleNotFoundError:
         write = MockWriteDecorator()
         def view(self, func):
             return func
+    class MockEVM:
+        def contract_interface(self, cls):
+            return cls
     class MockGL:
         message = MockMessage()
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
         public = MockPublicDecorator()
+        evm = MockEVM()
         def get_address(self):
             return "0x0000000000000000000000000000000000000000"
         def get_contract_at(self, addr):
@@ -224,8 +228,8 @@ class PayPerEscrow(gl.Contract):
         # Execute EVM transfer (stable SDK method)
         NativeTransferRecipient(Address(claim["seller"])).emit_transfer(value=u256(claim["amount"]))
 
-        # Report execution success to registry
-        registry = gl.get_contract_at(self.registry_address.as_hex)
+        # Report execution success to registry (use Address object registry_address directly)
+        registry = gl.get_contract_at(self.registry_address)
         registry.emit(on='finalized').record_execution(
             claim["seller"],
             True,
@@ -256,8 +260,8 @@ class PayPerEscrow(gl.Contract):
             # Execute EVM transfer (stable SDK method)
             NativeTransferRecipient(Address(claim["seller"])).emit_transfer(value=u256(claim["amount"]))
             
-            # Record execution success
-            registry = gl.get_contract_at(self.registry_address.as_hex)
+            # Record execution success (use Address object registry_address directly)
+            registry = gl.get_contract_at(self.registry_address)
             registry.emit(on='finalized').record_execution(
                 claim["seller"],
                 True,
@@ -275,8 +279,8 @@ class PayPerEscrow(gl.Contract):
             current_dep = self.deposits.get(buyer_hex, u256(0))
             self.deposits[buyer_hex] = current_dep + u256(claim["amount"])
 
-            # Record execution failure in registry
-            registry = gl.get_contract_at(self.registry_address.as_hex)
+            # Record execution failure in registry (use Address object registry_address directly)
+            registry = gl.get_contract_at(self.registry_address)
             registry.emit(on='finalized').record_execution(
                 claim["seller"],
                 False,
