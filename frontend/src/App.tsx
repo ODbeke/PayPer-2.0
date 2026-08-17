@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Check, AlertTriangle, AlertCircle
 } from 'lucide-react';
@@ -165,11 +165,19 @@ export default function App() {
   const [approveAmt, setApproveAmt] = useState('0.05');
   const [approveSellerAddr, setApproveSellerAddr] = useState('');
   
+
   // Buyer test frame states
   const [selectedListing, setSelectedListing] = useState<ServiceListing | null>(null);
   const [testInput, setTestInput] = useState('Write an analysis of blockchain scaling solutions in 2 sentences.');
   const [testCriteria, setTestCriteria] = useState('Must mention Layer 2 and Rollups. Must be exactly 2 sentences.');
   const [testResult, setTestResult] = useState<{ output: string; time: number; claimId?: string } | null>(null);
+
+  const walletRef = useRef<BurnerWallet | null>(null);
+  const configRef = useRef<ContractConfig | null>(null);
+  useEffect(() => {
+    walletRef.current = wallet;
+    configRef.current = config;
+  }, [wallet, config]);
 
 
   // --- Load / Create Burner Wallet ---
@@ -216,7 +224,9 @@ export default function App() {
   }, []);
 
   const updateBalancesAndData = useCallback(async () => {
-    if (!wallet) return;
+    const currentWallet = walletRef.current;
+    const currentConfig = configRef.current;
+    if (!currentWallet) return;
 
     // Get burner native balance
     try {
@@ -226,7 +236,7 @@ export default function App() {
         body: JSON.stringify({
           jsonrpc: '2.0',
           method: 'eth_getBalance',
-          params: [wallet.address, 'latest'],
+          params: [currentWallet.address, 'latest'],
           id: 1
         })
       });
@@ -241,9 +251,9 @@ export default function App() {
     }
 
     // Get escrow deposit balance
-    if (config.escrow) {
+    if (currentConfig && currentConfig.escrow) {
       try {
-        const res = await fetch(`${API_BASE}/escrow/deposit?user=${wallet.address}`);
+        const res = await fetch(`${API_BASE}/escrow/deposit?user=${currentWallet.address}`);
         const data = await res.json();
         if (data.deposit !== undefined) {
           setDeposit(data.deposit / 10**18);
@@ -252,7 +262,7 @@ export default function App() {
     }
 
     // Fetch services list
-    if (config.registry) {
+    if (currentConfig && currentConfig.registry) {
       try {
         setIsLoadingOnChain(true);
         const res = await fetch(`${API_BASE}/registry/services`);
@@ -271,7 +281,7 @@ export default function App() {
     }
 
     // Fetch claims list skipped (unused local)
-  }, [wallet, config]);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -280,12 +290,14 @@ export default function App() {
 
   // Live polling
   useEffect(() => {
-    if (wallet && config.registry) {
+    const currentWallet = walletRef.current;
+    const currentConfig = configRef.current;
+    if (currentWallet && currentConfig && currentConfig.registry) {
       updateBalancesAndData();
-      const interval = setInterval(updateBalancesAndData, 5000);
+      const interval = setInterval(updateBalancesAndData, 10000);
       return () => clearInterval(interval);
     }
-  }, [wallet, config, updateBalancesAndData]);
+  }, [wallet?.address, config?.registry, updateBalancesAndData]);
 
   // --- Auto-Fund New Wallets ---
   useEffect(() => {
