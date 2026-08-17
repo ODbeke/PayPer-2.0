@@ -97,6 +97,7 @@ def test_payper_marketplace_escrow_lifecycle():
     rc_claim = escrow.connect(seller).claim_payment(
         args=[
             buyer.address,
+            service_contract_address,
             claim_val,
             180, # response_time_ms
             "Please summarize this long document.", # input
