@@ -44,10 +44,10 @@ def test_payper_marketplace_escrow_lifecycle():
     registry = registry_factory.deploy(args=[])
     
     escrow_factory = get_contract_factory("PayPerEscrow")
-    escrow = escrow_factory.deploy(args=[registry.address.as_hex])
+    escrow = escrow_factory.deploy(args=[registry.address])
     
     # Set escrow address in registry
-    rc_escrow_set = registry.set_escrow_address(args=[escrow.address.as_hex]).transact()
+    rc_escrow_set = registry.set_escrow_address(args=[escrow.address]).transact()
     assert tx_execution_succeeded(rc_escrow_set)
 
     buyer = create_account()
