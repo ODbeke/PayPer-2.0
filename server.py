@@ -359,7 +359,7 @@ def run(port=5000):
     print("Backend API server stopped.")
 
 if __name__ == "__main__":
-    port = 5000
+    port = 5001
     if len(sys.argv) > 1:
         port = int(sys.argv[1])
     run(port)
