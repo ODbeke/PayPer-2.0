@@ -1,6 +1,60 @@
 # v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
-from genlayer import *
+try:
+    from genlayer import *
+except ModuleNotFoundError:
+    # Local unit test mocks
+    class Address:
+        def __init__(self, val):
+            self.val = str(val)
+        @property
+        def as_hex(self):
+            return self.val
+    class u256(int):
+        pass
+    class TreeMap:
+        def __init__(self):
+            self.data = {}
+        def get(self, key, default=None):
+            return self.data.get(key, default)
+        def __getitem__(self, key):
+            return self.data[key]
+        def __setitem__(self, key, value):
+            self.data[key] = value
+        def __contains__(self, key):
+            return key in self.data
+    class DynArray:
+        def __init__(self):
+            self.data = []
+        def append(self, item):
+            self.data.append(item)
+        def __len__(self):
+            return len(self.data)
+        def __getitem__(self, key):
+            return self.data[key]
+    class MockMessage:
+        sender_address = Address("0x0000000000000000000000000000000000000000")
+        value = 0
+    class MockVM:
+        class UserError(Exception):
+            pass
+    class MockGL:
+        message = MockMessage()
+        message_raw = {"datetime": "2026-08-17T00:00:00Z"}
+        vm = MockVM()
+        Contract = object
+        def transfer(self, to_addr, amt):
+            pass
+        def get_contract_at(self, addr):
+            class RegistryMock:
+                def emit(self, on=None):
+                    class EmitMock:
+                        def record_execution(self, seller, success, time, amt):
+                            pass
+                    return EmitMock()
+            return RegistryMock()
+    gl = MockGL()
+
 import json
 
 # Fallback definition for local Python import compatibility in tests
@@ -8,30 +62,6 @@ try:
     u256
 except NameError:
     u256 = int
-
-try:
-    gl
-except NameError:
-    class MockVM:
-        class UserError(Exception):
-            def __init__(self, message):
-                self.message = message
-                super().__init__(message)
-    class MockWriteDecorator:
-        def __call__(self, func):
-            return func
-        def payable(self, func):
-            return func
-    class MockPublicDecorator:
-        write = MockWriteDecorator()
-        def view(self, func):
-            return func
-    class MockGL:
-        vm = MockVM
-        public = MockPublicDecorator()
-        class Contract:
-            pass
-    gl = MockGL()
 
 ERR_EXPECTED_INPUT = "[EXPECTED_INPUT]"
 ERR_CONVERGENCE_FAIL = "[CONVERGENCE_FAIL]"
@@ -67,6 +97,10 @@ class PayPerEscrow(gl.Contract):
         self.owner = gl.message.sender_address
         self.registry_address = Address(registry_address)
         self.total_claims = u256(0)
+        self.deposits = TreeMap()
+        self.allowances = TreeMap()
+        self.claims = TreeMap()
+        self.claim_ids = DynArray()
 
     @gl.public.write.payable
     def deposit(self) -> None:
