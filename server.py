@@ -99,8 +99,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["faucet"]:
                     self.send_json(400, {"error": "Faucet not deployed"})
                     return
-                faucet_inst = client.get_contract_at(deployed_contracts["faucet"])
-                bal = faucet_inst.get_faucet_balance().call()
+                bal = client.read_contract(
+                    address=deployed_contracts["faucet"],
+                    function_name="get_faucet_balance"
+                )
                 self.send_json(200, {"balance": int(bal)})
                 return
 
@@ -108,8 +110,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["registry"]:
                     self.send_json(200, [])
                     return
-                reg_inst = client.get_contract_at(deployed_contracts["registry"])
-                services = reg_inst.get_services().call()
+                services = client.read_contract(
+                    address=deployed_contracts["registry"],
+                    function_name="get_services"
+                )
                 # Convert address types to strings
                 formatted_services = []
                 for s in services:
@@ -136,8 +140,11 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["escrow"]:
                     self.send_json(400, {"error": "Escrow not deployed"})
                     return
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                dep = escrow_inst.get_deposit(args=[user]).call()
+                dep = client.read_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="get_deposit",
+                    args=[user]
+                )
                 self.send_json(200, {"deposit": int(dep)})
                 return
 
@@ -150,8 +157,11 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["escrow"]:
                     self.send_json(400, {"error": "Escrow not deployed"})
                     return
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                allowance = escrow_inst.get_allowance(args=[buyer, seller]).call()
+                allowance = client.read_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="get_allowance",
+                    args=[buyer, seller]
+                )
                 self.send_json(200, {"allowance": int(allowance)})
                 return
 
@@ -159,8 +169,11 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 if not deployed_contracts["escrow"]:
                     self.send_json(200, [])
                     return
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                claims = escrow_inst.get_claims(args=[0]).call()
+                claims = client.read_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="get_claims",
+                    args=[0]
+                )
                 self.send_json(200, claims)
                 return
 
@@ -211,15 +224,19 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
 
                 # Configure Registry Escrow Address
                 print("Setting escrow address in Registry...")
-                reg_inst = client.get_contract_at(registry_address)
-                # Fund faucet with some tokens from default genesis deployer
-                # GenVM default genesis deployer is the primary account of create_account() / client
-                reg_inst.set_escrow_address(args=[escrow_address]).transact()
+                client.write_contract(
+                    address=registry_address,
+                    function_name="set_escrow_address",
+                    args=[escrow_address]
+                )
 
                 # Fund Faucet with 100 GEN
                 print("Funding Faucet with 100 GEN...")
-                faucet_inst = client.get_contract_at(faucet_address)
-                faucet_inst.deposit_faucet_funds().transact(value=100 * 10**18)
+                client.write_contract(
+                    address=faucet_address,
+                    function_name="deposit_faucet_funds",
+                    value=100 * 10**18
+                )
 
                 save_config()
                 self.send_json(200, deployed_contracts)
@@ -232,9 +249,12 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     self.send_json(400, {"error": "Missing recipient address"})
                     return
                 
-                faucet_inst = client.get_contract_at(deployed_contracts["faucet"])
-                tx = faucet_inst.request_faucet(args=[recipient]).transact()
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                tx = client.write_contract(
+                    address=deployed_contracts["faucet"],
+                    function_name="request_faucet",
+                    args=[recipient]
+                )
+                self.send_json(200, {"tx_hash": tx})
                 return
 
             elif path == "/api/registry/register":
@@ -251,11 +271,16 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                reg_inst = client.get_contract_at(deployed_contracts["registry"])
-                tx = reg_inst.connect(acc).register_service(
+                # Fund target seller wallet automatically to allow execution fees if needed
+                client.fund_account(acc.address, 10 * 10**18)
+
+                tx = client.write_contract(
+                    address=deployed_contracts["registry"],
+                    function_name="register_service",
+                    account=acc,
                     args=[svc_addr, name, int(price), category, description]
-                ).transact()
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                )
+                self.send_json(200, {"tx_hash": tx})
                 return
 
             elif path == "/api/escrow/deposit":
@@ -268,9 +293,16 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                tx = escrow_inst.connect(acc).deposit().transact(value=int(amount))
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                # Fund buyer if needed
+                client.fund_account(acc.address, 10 * 10**18)
+
+                tx = client.write_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="deposit",
+                    account=acc,
+                    value=int(amount)
+                )
+                self.send_json(200, {"tx_hash": tx})
                 return
 
             elif path == "/api/escrow/approve":
@@ -284,11 +316,13 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                tx = escrow_inst.connect(acc).approve_seller(
+                tx = client.write_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="approve_seller",
+                    account=acc,
                     args=[seller, int(amount)]
-                ).transact()
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                )
+                self.send_json(200, {"tx_hash": tx})
                 return
 
             elif path == "/api/escrow/claim":
@@ -307,8 +341,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                tx = escrow_inst.connect(acc).claim_payment(
+                tx = client.write_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="claim_payment",
+                    account=acc,
                     args=[
                         buyer,
                         svc_addr,
@@ -318,8 +354,8 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                         output_payload,
                         criteria
                     ]
-                ).transact()
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                )
+                self.send_json(200, {"tx_hash": tx})
                 return
 
             elif path == "/api/escrow/release":
@@ -332,11 +368,15 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                tx = escrow_inst.connect(acc).release_claim(
+                tx_hash = client.write_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="release_claim",
+                    account=acc,
                     args=[claim_id]
-                ).transact(wait_triggered_transactions=True)
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                )
+                # Wait for finalization to trigger stats callback
+                client.wait_for_transaction_receipt(tx_hash)
+                self.send_json(200, {"tx_hash": tx_hash})
                 return
 
             elif path == "/api/escrow/dispute":
@@ -349,11 +389,14 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     return
 
                 acc = Account.from_key(pkey)
-                escrow_inst = client.get_contract_at(deployed_contracts["escrow"])
-                tx = escrow_inst.connect(acc).dispute_claim(
+                tx_hash = client.write_contract(
+                    address=deployed_contracts["escrow"],
+                    function_name="dispute_claim",
+                    account=acc,
                     args=[claim_id]
-                ).transact(wait_triggered_transactions=True)
-                self.send_json(200, {"tx_hash": tx.transaction_hash.hex() if hasattr(tx, 'transaction_hash') else str(tx)})
+                )
+                client.wait_for_transaction_receipt(tx_hash)
+                self.send_json(200, {"tx_hash": tx_hash})
                 return
 
             # Catch-all
@@ -362,7 +405,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error_json(e)
 
-def run(port=5000):
+def run(port=5001):
     load_config()
     server_address = ('', port)
     httpd = HTTPServer(server_address, GenLayerAPIHandler)
