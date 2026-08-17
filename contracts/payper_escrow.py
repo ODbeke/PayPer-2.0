@@ -10,6 +10,8 @@ except ModuleNotFoundError:
         @property
         def as_hex(self):
             return self.val
+        def __eq__(self, other):
+            return self.as_hex.lower() == getattr(other, 'as_hex', '').lower()
     class u256(int):
         pass
     class TreeMap:
@@ -38,13 +40,28 @@ except ModuleNotFoundError:
     class MockVM:
         class UserError(Exception):
             pass
+        def run_nondet_unsafe(self, leader, validator):
+            return leader()
+    class MockWriteDecorator:
+        def __call__(self, func):
+            return func
+        def payable(self, func):
+            return func
+    class MockPublicDecorator:
+        write = MockWriteDecorator()
+        def view(self, func):
+            return func
     class MockGL:
         message = MockMessage()
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
-        Contract = object
+        public = MockPublicDecorator()
         def transfer(self, to_addr, amt):
             pass
+        def get_balance(self, addr):
+            return 100 * 10**18
+        def get_address(self):
+            return "0x0000000000000000000000000000000000000000"
         def get_contract_at(self, addr):
             class RegistryMock:
                 def emit(self, on=None):
@@ -54,6 +71,15 @@ except ModuleNotFoundError:
                     return EmitMock()
             return RegistryMock()
     gl = MockGL()
+    
+    class LocalContract:
+        def __init__(self, *args, **kwargs):
+            for name, type_hint in getattr(self, '__annotations__', {}).items():
+                if 'TreeMap' in str(type_hint):
+                    setattr(self, name, TreeMap())
+                elif 'DynArray' in str(type_hint):
+                    setattr(self, name, DynArray())
+    gl.Contract = LocalContract
 
 import json
 
@@ -94,13 +120,10 @@ class PayPerEscrow(gl.Contract):
     total_claims: u256
 
     def __init__(self, registry_address: str) -> None:
+        super().__init__()
         self.owner = gl.message.sender_address
         self.registry_address = Address(registry_address)
         self.total_claims = u256(0)
-        self.deposits = TreeMap()
-        self.allowances = TreeMap()
-        self.claims = TreeMap()
-        self.claim_ids = DynArray()
 
     @gl.public.write.payable
     def deposit(self) -> None:
