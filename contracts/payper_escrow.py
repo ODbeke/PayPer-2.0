@@ -56,10 +56,6 @@ except ModuleNotFoundError:
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
         public = MockPublicDecorator()
-        def transfer(self, to_addr, amt):
-            pass
-        def get_balance(self, addr):
-            return 100 * 10**18
         def get_address(self):
             return "0x0000000000000000000000000000000000000000"
         def get_contract_at(self, addr):
@@ -91,6 +87,13 @@ except NameError:
 
 ERR_EXPECTED_INPUT = "[EXPECTED_INPUT]"
 ERR_CONVERGENCE_FAIL = "[CONVERGENCE_FAIL]"
+
+@gl.evm.contract_interface
+class NativeTransferRecipient:
+    class View:
+        pass
+    class Write:
+        pass
 
 def _parse_verdict(raw_output) -> dict:
     """Parses the JSON verdict from the AI jury."""
@@ -144,7 +147,8 @@ class PayPerEscrow(gl.Contract):
         assert current_dep >= amt, "Insufficient deposited funds"
 
         self.deposits[buyer] = current_dep - amt
-        gl.transfer(gl.message.sender_address, amt)
+        # Execute EVM transfer (stable SDK method)
+        NativeTransferRecipient(gl.message.sender_address).emit_transfer(value=amt)
 
     @gl.public.write
     def approve_seller(self, seller_address: str, allowance_wei: int) -> None:
@@ -217,8 +221,8 @@ class PayPerEscrow(gl.Contract):
         claim["status"] = "SETTLED"
         self.claims[claim_id] = json.dumps(claim)
 
-        # Execute transfer to seller
-        gl.transfer(Address(claim["seller"]), u256(claim["amount"]))
+        # Execute EVM transfer (stable SDK method)
+        NativeTransferRecipient(Address(claim["seller"])).emit_transfer(value=u256(claim["amount"]))
 
         # Report execution success to registry
         registry = gl.get_contract_at(self.registry_address.as_hex)
@@ -249,7 +253,8 @@ class PayPerEscrow(gl.Contract):
             claim["verdict_reason"] = verdict["reason"]
             self.claims[claim_id] = json.dumps(claim)
             
-            gl.transfer(Address(claim["seller"]), u256(claim["amount"]))
+            # Execute EVM transfer (stable SDK method)
+            NativeTransferRecipient(Address(claim["seller"])).emit_transfer(value=u256(claim["amount"]))
             
             # Record execution success
             registry = gl.get_contract_at(self.registry_address.as_hex)
