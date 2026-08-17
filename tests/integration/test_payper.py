@@ -27,8 +27,9 @@ def test_payper_faucet_lifecycle():
     assert int(bal) == fund_amt
 
     # 2. User requests faucet (should succeed and get 20 GEN)
-    rc_req = faucet.connect(user).request_faucet(args=[user.address]).transact()
-    assert tx_execution_succeeded(rc_req)
+    if not tx_execution_succeeded(rc_req):
+        import pprint
+        raise Exception(f"Faucet request failed! Receipt:\n{pprint.pformat(rc_req)}")
     
     # Check updated balance
     bal_after = faucet.get_faucet_balance().call()
