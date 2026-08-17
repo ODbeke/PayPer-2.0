@@ -166,6 +166,7 @@ class PayPerEscrow(gl.Contract):
     def claim_payment(
         self,
         buyer_address: str,
+        service_contract_address: str,
         amount_wei: int,
         response_time_ms: int,
         input_payload: str,
@@ -175,6 +176,7 @@ class PayPerEscrow(gl.Contract):
         """Called by the seller to submit a claim for a performed task."""
         seller = gl.message.sender_address.as_hex.lower()
         buyer = Address(buyer_address).as_hex.lower()
+        service_addr = Address(service_contract_address).as_hex.lower()
         amt = u256(amount_wei)
         key = buyer + ":" + seller
 
@@ -197,6 +199,7 @@ class PayPerEscrow(gl.Contract):
             "id": claim_id,
             "buyer": buyer,
             "seller": seller,
+            "service_address": service_addr,
             "amount": int(amt),
             "response_time_ms": int(response_time_ms),
             "input": input_payload,
@@ -231,7 +234,7 @@ class PayPerEscrow(gl.Contract):
         # Report execution success to registry (use Address object registry_address directly)
         registry = gl.get_contract_at(self.registry_address)
         registry.emit(on='finalized').record_execution(
-            claim["seller"],
+            claim["service_address"],
             True,
             claim["response_time_ms"],
             claim["amount"]
@@ -263,7 +266,7 @@ class PayPerEscrow(gl.Contract):
             # Record execution success (use Address object registry_address directly)
             registry = gl.get_contract_at(self.registry_address)
             registry.emit(on='finalized').record_execution(
-                claim["seller"],
+                claim["service_address"],
                 True,
                 claim["response_time_ms"],
                 claim["amount"]
@@ -282,7 +285,7 @@ class PayPerEscrow(gl.Contract):
             # Record execution failure in registry (use Address object registry_address directly)
             registry = gl.get_contract_at(self.registry_address)
             registry.emit(on='finalized').record_execution(
-                claim["seller"],
+                claim["service_address"],
                 False,
                 claim["response_time_ms"],
                 claim["amount"]
