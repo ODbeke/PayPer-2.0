@@ -230,19 +230,10 @@ export default function App() {
 
     // Get burner native balance
     try {
-      const response = await fetch('http://127.0.0.1:4000/api', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'eth_getBalance',
-          params: [currentWallet.address, 'latest'],
-          id: 1
-        })
-      });
+      const response = await fetch(`${API_BASE}/balance?address=${currentWallet.address}`);
       const data = await response.json();
-      if (data.result) {
-        const balWei = BigInt(data.result);
+      if (data.balance !== undefined) {
+        const balWei = BigInt(data.balance);
         const balGen = Number(balWei) / 10**18;
         setWallet(prev => prev ? { ...prev, balance: balGen } : null);
       }
