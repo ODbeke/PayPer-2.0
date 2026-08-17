@@ -17,7 +17,19 @@ except ImportError:
 
 # Default Local RPC URL
 RPC_URL = "http://127.0.0.1:4000/api"
-client = create_client(endpoint=RPC_URL)
+
+# Initialize deterministic deployer account for backend contract deployments
+deployer_private_key = "0x" + "b" * 64  # Deterministic private key
+deployer_account = Account.from_key(deployer_private_key)
+
+print(f"Initializing GenLayer client with deployer account: {deployer_account.address}")
+client = create_client(endpoint=RPC_URL, account=deployer_account)
+
+try:
+    print(f"Funding deployer account on localnet...")
+    client.fund_account(deployer_account.address, 1000 * 10**18)
+except Exception as e:
+    print(f"Warning: could not fund account on localnet: {e}")
 
 CONFIG_PATH = Path(__file__).parent / "contracts.json"
 
@@ -168,9 +180,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 print("Deploying PayPerRegistry...")
                 with open("contracts/payper_registry.py", "r") as f:
                     registry_code = f.read()
-                reg_factory = client.get_contract_factory(registry_code)
-                reg_tx = reg_factory.deploy(args=[])
-                registry_address = reg_tx.address
+                
+                reg_hash = client.deploy_contract(code=registry_code)
+                reg_receipt = client.wait_for_transaction_receipt(reg_hash)
+                registry_address = reg_receipt["to_address"]
                 deployed_contracts["registry"] = registry_address
                 print(f"Registry deployed at: {registry_address}")
 
@@ -178,9 +191,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 print("Deploying PayPerFaucet...")
                 with open("contracts/payper_faucet.py", "r") as f:
                     faucet_code = f.read()
-                faucet_factory = client.get_contract_factory(faucet_code)
-                faucet_tx = faucet_factory.deploy(args=[])
-                faucet_address = faucet_tx.address
+                
+                faucet_hash = client.deploy_contract(code=faucet_code)
+                faucet_receipt = client.wait_for_transaction_receipt(faucet_hash)
+                faucet_address = faucet_receipt["to_address"]
                 deployed_contracts["faucet"] = faucet_address
                 print(f"Faucet deployed at: {faucet_address}")
 
@@ -188,9 +202,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 print("Deploying PayPerEscrow...")
                 with open("contracts/payper_escrow.py", "r") as f:
                     escrow_code = f.read()
-                escrow_factory = client.get_contract_factory(escrow_code)
-                escrow_tx = escrow_factory.deploy(args=[registry_address])
-                escrow_address = escrow_tx.address
+                
+                escrow_hash = client.deploy_contract(code=escrow_code, args=[registry_address])
+                escrow_receipt = client.wait_for_transaction_receipt(escrow_hash)
+                escrow_address = escrow_receipt["to_address"]
                 deployed_contracts["escrow"] = escrow_address
                 print(f"Escrow deployed at: {escrow_address}")
 
