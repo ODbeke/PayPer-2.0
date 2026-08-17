@@ -1,2 +1,2 @@
-paths:
-  contracts: contracts
+network: studionet
+contracts_dir: contracts
