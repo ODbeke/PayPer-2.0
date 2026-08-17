@@ -125,6 +125,11 @@ export default function App() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('payper_current_page', currentPage);
     }
+    if (currentPage === 'app') {
+      document.body.classList.add('memoriada-app-body');
+    } else {
+      document.body.classList.remove('memoriada-app-body');
+    }
   }, [currentPage]);
 
   // Inside App View Toggle State: 'buyer' | 'seller'
