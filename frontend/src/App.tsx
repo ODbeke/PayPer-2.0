@@ -669,9 +669,6 @@ export default function App() {
               >
                 [02] LIST SERVICE // SELLER
               </button>
-              <button className="btn-terminal" onClick={() => setCurrentPage('landing')}>
-                [03] LANDING PAGE
-              </button>
             </>
           ) : (
             <>
