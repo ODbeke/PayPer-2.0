@@ -1115,7 +1115,7 @@ export default function App() {
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span style={{ fontSize: '11px', color: 'var(--ink-tertiary)' }}>
-                            Requires Escrow Balance: >= {selectedListing.price / 10**18} GEN
+                            Requires Escrow Balance: &gt;= {selectedListing.price / 10**18} GEN
                           </span>
                           <button 
                             onClick={executeServiceCall}
