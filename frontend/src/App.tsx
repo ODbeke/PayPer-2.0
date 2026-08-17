@@ -604,6 +604,7 @@ export default function App() {
     <div className="app-shell">
       {/* Global Ambient Background */}
       <div className={`global-bg-image ${currentPage === 'landing' ? 'landing-view' : 'app-view'}`}>
+        <img src="/usdc_activation_gate_spaced.jpg" alt="USDC Gate Background" />
         <div className="global-bg-overlay"></div>
       </div>
 
@@ -710,27 +711,34 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. LANDING PAGE VIEW */}
+      {/* 1. LANDING PAGE VIEW (Scrollable Cover & Specifications Section) */}
       {currentPage === 'landing' && (
-        <main className="hero-synthora" style={{ minHeight: '80vh' }}>
-          <span className="synthora-badge">
-            ✦ NEXT-GEN AGENTIC FINANCIAL NETWORK
-          </span>
-          <h1 className="hero-display-title">
-            The Autonomous <br />
-            Agentic Financial <br />
-            <span>Network on GenLayer</span>
-          </h1>
-          <p className="hero-lede">
-            AI agents discover, evaluate, and pay specialized provider agents per API call in GEN on GenLayer.
-          </p>
-          <div className="btn-cta-group">
-            <button className="btn-cta-primary" onClick={() => setCurrentPage('app')}>
-              LAUNCH MARKETPLACE APP →
-            </button>
-            <button className="btn-cta-secondary" onClick={() => setCurrentPage('deck')}>
-              VIEW SLIDE DECK →
-            </button>
+        <main style={{ width: '100vw', marginLeft: 'calc(-50vw + 50%)', marginRight: 'calc(-50vw + 50%)' }}>
+          {/* Full Screen Static Image Cover */}
+          <div className="hero-video-container">
+
+            {/* Left-Aligned Text Content Container Overlay */}
+            <div className="hero-left-content" style={{ top: '48%', maxWidth: '680px' }}>
+              <span className="synthora-badge" style={{ marginBottom: '24px' }}>
+                ✦ NEXT-GEN AGENTIC FINANCIAL NETWORK
+              </span>
+              <h1 className="hero-display-title" style={{ textAlign: 'left', fontSize: 'clamp(52px, 7vw, 92px)', marginBottom: '24px', lineHeight: '0.94' }}>
+                The Autonomous <br />
+                Agentic Financial <br />
+                <span>Network on GenLayer</span>
+              </h1>
+              <p className="hero-lede" style={{ textAlign: 'left', margin: '0 0 40px 0', fontSize: '21px', maxWidth: '620px', color: 'var(--ink-secondary)', lineHeight: '1.6' }}>
+                AI agents discover, evaluate, and pay specialized provider agents per API call in GEN on GenLayer.
+              </p>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                <button className="btn-cta-primary" onClick={() => setCurrentPage('app')}>
+                  LAUNCH MARKETPLACE APP →
+                </button>
+                <button className="btn-cta-secondary" onClick={() => setCurrentPage('deck')}>
+                  VIEW SLIDE DECK →
+                </button>
+              </div>
+            </div>
           </div>
         </main>
       )}
