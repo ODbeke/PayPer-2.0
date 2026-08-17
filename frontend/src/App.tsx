@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Wallet, Cpu, Terminal, Plus, Check, RefreshCw, Key, 
-  Settings, ExternalLink, AlertTriangle, AlertCircle, Play
+  Settings, ExternalLink, AlertTriangle, AlertCircle, Play, 
+  ChevronRight, Info, Sparkles, ChevronDown, LogOut
 } from 'lucide-react';
 import { ethers } from 'ethers';
-import './App.css';
+import './index.css';
 
 const API_BASE = 'http://localhost:5001/api';
 
@@ -54,28 +55,132 @@ interface ConsoleLog {
   message: string;
 }
 
-function App() {
-  // --- States ---
+const SLIDES = [
+  {
+    number: "01",
+    tag: "TITLE & TAGLINE",
+    title: "PayPer 2.0: Agent-to-Agent Nanopayment Marketplace on GenLayer",
+    subtitle: "Programmable Money Hackathon — GenLayer Intelligent Contract Integration",
+    points: [
+      "Frictionless GEN micro-transactions between autonomous AI agents on GenLayer.",
+      "Voucher-based off-chain signature hot path for guaranteed sub-second response times.",
+      "Validator-level AI consensus court for decentralized output verification and disputes.",
+      "Live Registry Contract: Deployed on Studionet.",
+      "Live Escrow Contract: Handles automated settlements and jury refunds."
+    ]
+  },
+  {
+    number: "02",
+    tag: "THE PROBLEM",
+    title: "The Latency & Trust Bottleneck in the Agent Economy",
+    subtitle: "Why standard blockchain consensus fails for machine-to-machine services",
+    points: [
+      "Standard Blockchain Latency: Waiting 10-15 seconds for on-chain consensus blocks makes real-time agent API integrations unusable.",
+      "The Trust Deficit: How does a buyer agent know a seller agent's API output actually satisfies the requested prompt?",
+      "High Dispute Overhead: Traditional multi-sig or manual arbitration is slow, expensive, and cannot scale for machine transactions."
+    ]
+  },
+  {
+    number: "03",
+    tag: "THE SOLUTION",
+    title: "PayPer 2.0: Hot-Path Vouchers backed by AI Courts",
+    subtitle: "Integrating GenLayer's AI Consensus into per-API micro-settlements",
+    points: [
+      "Off-chain Burner Wallets: User wallet automatically signs voucher authorization signatures off-chain, achieving instant execution latency.",
+      "x402 Payment Required: Settle billing claims on-chain via the Escrow contract using the signed execution vouchers.",
+      "On-chain Dispute Resolution: Summon the GenLayer AI Jury when outputs violate the prompt's validation criteria."
+    ]
+  },
+  {
+    number: "04",
+    tag: "PAYMENT ARCHITECTURE",
+    title: "x402 + Off-chain Burner Vouchers + AI Court",
+    subtitle: "Verify → Execute → Settle Flow with Guaranteed Safety",
+    points: [
+      "1. Request & Challenge: Buyer Agent queries Seller endpoint → Seller responds with nonce and price.",
+      "2. Execution & Signature: Seller executes the request, returns the payload. Buyer signs the voucher off-chain.",
+      "3. On-chain Billing Claim: Seller logs the claim on the Escrow contract to secure the payment.",
+      "4. Settlement or Dispute: Buyer releases funds if satisfying, or triggers AI Judge consensus for automatic refunds."
+    ]
+  },
+  {
+    number: "05",
+    tag: "ONCHAIN REGISTRY",
+    title: "Signal-Based Autonomous Agent Discovery",
+    subtitle: "Pure on-chain directory mapping service capabilities to live endpoints",
+    points: [
+      "PayPerRegistry Intelligent Contract: Tracks registered agents and capability endpoints.",
+      "Signal-Based Selection: Buyer agents evaluate candidate listings using weighted on-chain metrics:",
+      "   • Rating Score (e.g., 99/100)",
+      "   • Success Ratio (e.g., 99.3%)",
+      "   • Response Speed (e.g., 120ms)",
+      "   • GEN Pricing (e.g., 0.01 GEN)",
+      "Zero Hallucination: Decision logic is 100% mathematical, transparent, and reproducible."
+    ]
+  },
+  {
+    number: "06",
+    tag: "SUMMARY & LINKS",
+    title: "Enabling Financial Autonomy for AI Agents",
+    subtitle: "Deliverables & Live Contract Links",
+    points: [
+      "Live Studionet Registry: 0xb13a464D0Bdf8B1A606D270Be25CCF455a8d57ef",
+      "Live Studionet Escrow: 0xF0d00A4511bD2d47631b33486E850f1dA80aEAEc",
+      "GitHub Repository: https://github.com/ODbeke/PayPer-2.0",
+      "Live Web Application: http://localhost:5173",
+      "Consensus Protocol: GenLayer AI Judge Consensus Adjudication"
+    ]
+  }
+];
+
+export default function App() {
+  // Navigation Page State: 'landing' | 'app' | 'deck'
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('payper_current_page') || 'landing';
+    }
+    return 'landing';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('payper_current_page', currentPage);
+    }
+  }, [currentPage]);
+
+  // Inside App View Toggle State: 'buyer' | 'seller'
+  const [viewMode, setViewMode] = useState('buyer');
+
+  // Presentation Deck Slide Index
+  const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
+
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [listings, setListings] = useState<ServiceListing[]>([]);
+  const [claims, setClaims] = useState<ClaimRecord[]>([]);
+  const [totalTxCount, setTotalTxCount] = useState(0);
+  const [totalVolume, setTotalVolume] = useState(0);
+  const [isLoadingOnChain, setIsLoadingOnChain] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // GenLayer Burner Wallet State
   const [wallet, setWallet] = useState<BurnerWallet | null>(null);
   const [config, setConfig] = useState<ContractConfig>({ registry: '', escrow: '', faucet: '' });
-  const [activeTab, setActiveTab] = useState<'buyer' | 'seller' | 'console' | 'settings'>('buyer');
-  const [services, setServices] = useState<ServiceListing[]>([]);
-  const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [deposit, setDeposit] = useState<number>(0);
+  const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
+  const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [showPrivateKey, setShowPrivateKey] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Form states
-  const [regForm, setRegForm] = useState({ name: '', price: '0.01', category: 'summarization', description: '', contractAddress: '' });
+  const [sellerForm, setSellerForm] = useState({ name: '', endpoint: '', pricePerCall: '0.01', category: 'summarization', description: '' });
   const [depositAmt, setDepositAmt] = useState('0.05');
   const [approveAmt, setApproveAmt] = useState('0.05');
   const [approveSellerAddr, setApproveSellerAddr] = useState('');
   
   // Buyer test frame states
-  const [selectedService, setSelectedService] = useState<ServiceListing | null>(null);
+  const [selectedListing, setSelectedListing] = useState<ServiceListing | null>(null);
   const [testInput, setTestInput] = useState('Write an analysis of blockchain scaling solutions in 2 sentences.');
   const [testCriteria, setTestCriteria] = useState('Must mention Layer 2 and Rollups. Must be exactly 2 sentences.');
   const [testResult, setTestResult] = useState<{ output: string; time: number; claimId?: string } | null>(null);
@@ -127,7 +232,7 @@ function App() {
       const data = await res.json();
       setConfig(data);
       if (!data.registry) {
-        log('No contracts deployed. Please click "Deploy Contracts" in settings.', 'warning');
+        log('No contracts deployed. Please configure contracts.json.', 'warning');
       } else {
         log(`Contracts loaded. Registry: ${data.registry.substring(0, 10)}...`, 'info');
       }
@@ -158,7 +263,7 @@ function App() {
         setWallet(prev => prev ? { ...prev, balance: balGen } : null);
       }
     } catch (e) {
-      // Quietly ignore or log
+      // Quietly ignore
     }
 
     // Get escrow deposit balance
@@ -175,12 +280,20 @@ function App() {
     // Fetch services list
     if (config.registry) {
       try {
+        setIsLoadingOnChain(true);
         const res = await fetch(`${API_BASE}/registry/services`);
         const data = await res.json();
         if (Array.isArray(data)) {
-          setServices(data);
+          setListings(data);
+          // Set network stats
+          setTotalTxCount(data.reduce((acc, curr) => acc + curr.total_calls, 0));
+          setTotalVolume(data.reduce((acc, curr) => acc + (curr.total_calls * (curr.price / 10**18)), 0));
         }
-      } catch (e) {}
+      } catch (e) {
+        setFetchError("Failed to fetch registry data.");
+      } finally {
+        setIsLoadingOnChain(false);
+      }
     }
 
     // Fetch claims list
@@ -193,7 +306,7 @@ function App() {
         }
       } catch (e) {}
     }
-  }, [wallet, config, setWallet]);
+  }, [wallet, config]);
 
   // Initial load
   useEffect(() => {
@@ -235,32 +348,23 @@ function App() {
     }
   }, [wallet?.address, wallet?.balance, config.faucet, log, updateBalancesAndData]);
 
-  // --- Form Action Submissions ---
+  // Keyboard Navigation for Slideshow
+  useEffect(() => {
+    if (currentPage !== 'deck') return;
 
-  const handleDeployContracts = async () => {
-    setLoading(prev => ({ ...prev, deploy: true }));
-    setErrorMsg(null);
-    log('Compiling and deploying Intelligent Contracts to GenLayer...', 'info');
-    try {
-      const res = await fetch(`${API_BASE}/deploy`, { method: 'POST' });
-      const data = await res.json();
-      if (data.registry) {
-        setConfig(data);
-        log(`Contracts deployed successfully! Registry: ${data.registry}`, 'success');
-        log(`Faucet funded with 100 GEN reservoir balance.`, 'success');
-        setSuccessMsg('GenLayer Intelligent Contracts successfully compiled and deployed!');
-        updateBalancesAndData();
-      } else {
-        setErrorMsg(data.error || 'Deployment failed');
-        log(`Deployment failed: ${data.error}`, 'error');
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'Space') {
+        setCurrentSlideIdx((prev) => Math.min(prev + 1, SLIDES.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        setCurrentSlideIdx((prev) => Math.max(prev - 1, 0));
       }
-    } catch (e: any) {
-      setErrorMsg(e.message);
-      log(`Deployment error: ${e.message}`, 'error');
-    } finally {
-      setLoading(prev => ({ ...prev, deploy: false }));
-    }
-  };
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPage]);
+
+  // --- Form Action Submissions ---
 
   const handleRequestFaucet = async () => {
     if (!wallet) return;
@@ -274,7 +378,7 @@ function App() {
       });
       const data = await res.json();
       if (data.tx_hash) {
-        log(`Faucet payout processed successfully! Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
+        log(`Faucet payout processed! Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
         setSuccessMsg('Successfully received 20 GEN from faucet.');
         updateBalancesAndData();
       } else {
@@ -342,31 +446,31 @@ function App() {
     }
   };
 
-  const handleRegisterService = async () => {
-    if (!wallet) return;
+  const handleRegisterService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wallet || !sellerForm.name || !sellerForm.endpoint) return;
     setLoading(prev => ({ ...prev, register: true }));
-    const priceWei = ethers.parseEther(regForm.price).toString();
-    log(`Registering service "${regForm.name}" in directory...`, 'info');
+    const priceWei = ethers.parseEther(sellerForm.pricePerCall).toString();
+    log(`Registering service "${sellerForm.name}" in directory...`, 'info');
     try {
-      // Mock unique contract address for listing representation
-      const mockContractAddr = regForm.contractAddress || ethers.Wallet.createRandom().address;
       const res = await fetch(`${API_BASE}/registry/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           private_key: wallet.privateKey,
-          service_address: mockContractAddr,
-          name: regForm.name,
+          service_address: sellerForm.endpoint, // use endpoint string as identifier
+          name: sellerForm.name,
           price: priceWei,
-          category: regForm.category,
-          description: regForm.description
+          category: sellerForm.category.toLowerCase(),
+          description: sellerForm.description
         })
       });
       const data = await res.json();
       if (data.tx_hash) {
         log(`Service registered successfully! Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
-        setSuccessMsg(`Registered service "${regForm.name}" under address ${mockContractAddr}.`);
-        setRegForm({ name: '', price: '0.01', category: 'summarization', description: '', contractAddress: '' });
+        setSuccessMsg(`Registered service "${sellerForm.name}" successfully.`);
+        setSellerForm({ name: '', endpoint: '', pricePerCall: '0.01', category: 'summarization', description: '' });
+        setViewMode('buyer');
         updateBalancesAndData();
       } else {
         setErrorMsg(data.error || 'Registration failed');
@@ -382,15 +486,15 @@ function App() {
   // --- Buyer View Service Execution Simulator ---
 
   const executeServiceCall = async () => {
-    if (!wallet || !selectedService) return;
+    if (!wallet || !selectedListing) return;
     setLoading(prev => ({ ...prev, execute: true }));
     setTestResult(null);
-    log(`[GOAL_RUNNER] Invoking service: ${selectedService.name} (Price: ${selectedService.price / 10**18} GEN)...`, 'info');
+    log(`[GOAL_RUNNER] Invoking service: ${selectedListing.name} (Price: ${selectedListing.price / 10**18} GEN)...`, 'info');
     
     // Simulate off-chain LLM processing delay
     setTimeout(async () => {
       let outputText = "";
-      const isSummarize = selectedService.category === 'summarization';
+      const isSummarize = selectedListing.category === 'summarization';
       
       if (isSummarize) {
         outputText = "Layer 2 solutions improve blockchain scaling by processing transactions off-chain via Rollups. The finalized state transitions are then committed securely to Layer 1.";
@@ -405,7 +509,7 @@ function App() {
       log(`[BURNER_WALLET] Programmatically signing claim voucher authorization...`, 'success');
       const hashMsg = ethers.solidityPackedKeccak256(
         ['address', 'address', 'uint256', 'string'],
-        [wallet.address, selectedService.seller, selectedService.price, outputText]
+        [wallet.address, selectedListing.seller, selectedListing.price, outputText]
       );
       const signature = await new ethers.Wallet(wallet.privateKey).signMessage(ethers.getBytes(hashMsg));
       log(`[BURNER_WALLET] Voucher signed: ${signature.substring(0, 24)}... (Off-chain delay: 0.1ms)`, 'success');
@@ -417,10 +521,10 @@ function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            private_key: wallet.privateKey, // Claim signed by user/seller
+            private_key: wallet.privateKey,
             buyer: wallet.address,
-            service_address: selectedService.address,
-            amount: selectedService.price.toString(),
+            service_address: selectedListing.address,
+            amount: selectedListing.price.toString(),
             response_time_ms: durationMs,
             input: testInput,
             output: outputText,
@@ -470,6 +574,7 @@ function App() {
         log(`[ESCROW] Payment released successfully! Statistics updated on-chain. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
         setSuccessMsg(`Payment released for claim ${claimId}.`);
         setTestResult(null);
+        setSelectedListing(null);
         updateBalancesAndData();
       } else {
         setErrorMsg(data.error || 'Release failed');
@@ -487,10 +592,9 @@ function App() {
     log(`[AI_COURT] Dispute filed for claim ${claimId}. Summoning GenLayer AI consensus jury...`, 'warning');
     
     // Simulate validator voting process visually in console
-    setTimeout(() => log(`[AI_COURT] Leader validator chosen. Compiling prompt verdict...`, 'consensus'), 2000);
-    setTimeout(() => log(`[AI_COURT] Validator 1 (US Node): vote=AGREE (verdict=INVALID)`, 'consensus'), 4000);
-    setTimeout(() => log(`[AI_COURT] Validator 2 (EU Node): vote=AGREE (verdict=INVALID)`, 'consensus'), 6000);
-    setTimeout(() => log(`[AI_COURT] Validator 3 (AS Node): vote=AGREE (verdict=INVALID)`, 'consensus'), 8000);
+    setTimeout(() => log(`[AI_COURT] Leader validator chosen. Compiling prompt verdict...`, 'consensus'), 1000);
+    setTimeout(() => log(`[AI_COURT] Validator 1: vote=AGREE (verdict=INVALID)`, 'consensus'), 2500);
+    setTimeout(() => log(`[AI_COURT] Validator 2: vote=AGREE (verdict=INVALID)`, 'consensus'), 4000);
     
     try {
       const res = await fetch(`${API_BASE}/escrow/dispute`, {
@@ -503,6 +607,7 @@ function App() {
         log(`[AI_COURT] Consensus reached: Claim is INVALID. Escrow balance refunded to buyer's deposit. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
         setSuccessMsg(`Dispute processed for ${claimId}. Refunded to escrow deposit.`);
         setTestResult(null);
+        setSelectedListing(null);
         updateBalancesAndData();
       } else {
         setErrorMsg(data.error || 'Dispute failed');
@@ -515,638 +620,686 @@ function App() {
     }
   };
 
+  const slide = SLIDES[currentSlideIdx];
+  const filteredListings = categoryFilter === 'all'
+    ? listings
+    : listings.filter(l => l.category === categoryFilter);
+
   // --- Render ---
-
   return (
-    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '24px 16px', position: 'relative' }}>
-      <div className="bg-grid"></div>
+    <div className="app-shell">
+      {/* Global Ambient Background */}
+      <div className={`global-bg-image ${currentPage === 'landing' ? 'landing-view' : 'app-view'}`}>
+        <div className="global-bg-overlay"></div>
+      </div>
 
-      {/* App Alert banners */}
-      {errorMsg && (
-        <div style={{ background: 'var(--accent-red-glow)', border: '1px solid var(--accent-red-border)', borderRadius: '8px', padding: '12px 16px', color: 'var(--accent-red)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-          <AlertCircle size={20} />
-          <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', marginLeft: 'auto', fontWeight: 'bold' }}>X</button>
-        </div>
-      )}
-      {successMsg && (
-        <div style={{ background: 'var(--accent-green-glow)', border: '1px solid var(--accent-green-border)', borderRadius: '8px', padding: '12px 16px', color: 'var(--accent-green)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Check size={20} />
-          <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-green)', cursor: 'pointer', marginLeft: 'auto', fontWeight: 'bold' }}>X</button>
-        </div>
-      )}
-
-      {/* App Header */}
-      <header className="glass-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '32px', margin: 0, fontWeight: 700, letterSpacing: '-0.04em', background: 'linear-gradient(90deg, var(--accent-green), var(--accent-blue))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Cpu size={28} className="terminal-glow-green" style={{ color: 'var(--accent-green)' }} />
-            PayPer <span style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', padding: '2px 8px', border: '1px solid var(--border-color-hover)', borderRadius: '4px', color: 'var(--text-primary)' }}>2.0</span>
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Voucher-based Hot Path AI Marketplace on GenLayer</p>
-        </div>
-
-        {/* Contract State Badges */}
-        <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem' }}>
-          <span className={`badge ${config.registry ? 'badge-green' : 'badge-red'}`}>
-            Registry: {config.registry ? `${config.registry.substring(0, 6)}...` : 'DISCONNECTED'}
-          </span>
-          <span className={`badge ${config.escrow ? 'badge-green' : 'badge-red'}`}>
-            Escrow: {config.escrow ? `${config.escrow.substring(0, 6)}...` : 'DISCONNECTED'}
-          </span>
-          <span className={`badge ${config.faucet ? 'badge-green' : 'badge-red'}`}>
-            Faucet: {config.faucet ? `${config.faucet.substring(0, 6)}...` : 'DISCONNECTED'}
-          </span>
-        </div>
-
-        {/* Burner Wallet Card */}
-        {wallet && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(255,255,255,0.02)', padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                {wallet.address.substring(0, 6)}...{wallet.address.substring(38)}
-              </span>
-              <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>
-                {wallet.balance.toFixed(2)} GEN
-              </span>
-            </div>
-            <div style={{ background: 'var(--accent-green-glow)', padding: '8px', borderRadius: '6px', border: '1px solid var(--accent-green-border)' }}>
-              <Wallet size={18} style={{ color: 'var(--accent-green)' }} />
+      {/* Top Floating Navigation Bar */}
+      <header className={`nav-terminal ${currentPage === 'landing' ? 'landing-nav' : ''}`}>
+        <button className="nav-brand" onClick={() => setCurrentPage('landing')}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="brand-title">PayPer<span>.</span></span>
             </div>
           </div>
-        )}
-      </header>
+        </button>
 
-      {/* Main Content Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '24px', minHeight: '650px' }}>
-        
-        {/* Navigation Sidebar */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', display: 'block' }}>NAVIGATION</span>
-            <button 
-              onClick={() => setActiveTab('buyer')}
-              className={`cyber-button ${activeTab === 'buyer' ? 'cyber-button-primary' : ''}`}
-              style={{ width: '100%', justifyContent: 'flex-start' }}
-            >
-              <Cpu size={16} /> Buyer Workspace
-            </button>
-            <button 
-              onClick={() => setActiveTab('seller')}
-              className={`cyber-button ${activeTab === 'seller' ? 'cyber-button-secondary' : ''}`}
-              style={{ width: '100%', justifyContent: 'flex-start' }}
-            >
-              <Plus size={16} /> Seller Workspace
-            </button>
-            <button 
-              onClick={() => setActiveTab('console')}
-              className={`cyber-button ${activeTab === 'console' ? 'cyber-button-primary' : ''}`}
-              style={{ width: '100%', justifyContent: 'flex-start', borderStyle: 'dashed' }}
-            >
-              <Terminal size={16} /> GenVM Consensus Console
-            </button>
-            <button 
-              onClick={() => setActiveTab('settings')}
-              className={`cyber-button ${activeTab === 'settings' ? 'cyber-button-primary' : ''}`}
-              style={{ width: '100%', justifyContent: 'flex-start' }}
-            >
-              <Settings size={16} /> Settings & Deployment
-            </button>
+        {/* Live Persistent Ticker */}
+        <div className="ticker-strip">
+          <div className="ticker-cell">
+            <span className="ticker-lbl">ONCHAIN_TXS:</span>
+            <span className="ticker-val">{totalTxCount}</span>
           </div>
+          <div style={{ color: 'rgba(255, 255, 255, 0.2)' }}>|</div>
+          <div className="ticker-cell">
+            <span className="ticker-lbl">GEN_VOLUME:</span>
+            <span className="ticker-val">{totalVolume.toFixed(2)} GEN</span>
+          </div>
+        </div>
 
-          {/* Faucet & Escrow Hot Controls */}
-          {wallet && config.escrow && (
-            <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Escrow Account</span>
-              
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Escrow Deposit:</span>
-                  <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{deposit.toFixed(2)} GEN</span>
-                </div>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <input 
-                    type="number" 
-                    value={depositAmt}
-                    onChange={(e) => setDepositAmt(e.target.value)}
-                    className="cyber-input" 
-                    placeholder="Amt" 
-                    style={{ flex: 1, padding: '6px 8px', fontSize: '0.85rem' }} 
-                  />
-                  <button 
-                    onClick={handleDepositEscrow}
-                    disabled={loading.deposit}
-                    className="cyber-button cyber-button-primary"
-                    style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                  >
-                    {loading.deposit ? '...' : 'Deposit'}
+        {/* Navigation Action Buttons */}
+        <div className="nav-actions">
+          {currentPage === 'app' && (
+            <div style={{ position: 'relative' }}>
+              {wallet ? (
+                <button
+                  className="btn-terminal"
+                  onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)}
+                  style={{ borderColor: 'var(--accent-emerald)', color: 'var(--accent-emerald)', fontSize: '11px', letterSpacing: '0.05em', cursor: 'pointer' }}
+                >
+                  {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                </button>
+              ) : (
+                <button className="btn-terminal" style={{ fontSize: '11px', letterSpacing: '0.05em' }}>
+                  CONNECTING WALLET
+                </button>
+              )}
+
+              {wallet && isWalletDropdownOpen && (
+                <div className="wallet-dropdown" style={{ display: 'block' }}>
+                  <div className="dropdown-item">
+                    <span className="dropdown-lbl">Balance</span>
+                    <span className="dropdown-val">{wallet.balance.toFixed(2)} GEN</span>
+                  </div>
+                  <hr className="dropdown-divider" />
+                  <button className="dropdown-btn" onClick={() => setIsWalletDropdownOpen(false)}>
+                    Close Panel
                   </button>
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Pre-Auth Seller:</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <input 
-                    type="text" 
-                    value={approveSellerAddr}
-                    onChange={(e) => setApproveSellerAddr(e.target.value)}
-                    className="cyber-input" 
-                    placeholder="Seller address 0x..." 
-                    style={{ padding: '6px 8px', fontSize: '0.85rem' }} 
-                  />
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <input 
-                      type="number" 
-                      value={approveAmt}
-                      onChange={(e) => setApproveAmt(e.target.value)}
-                      className="cyber-input" 
-                      placeholder="Amt" 
-                      style={{ flex: 1, padding: '6px 8px', fontSize: '0.85rem' }} 
-                    />
-                    <button 
-                      onClick={handleApproveSeller}
-                      disabled={loading.approve}
-                      className="cyber-button"
-                      style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                    >
-                      {loading.approve ? '...' : 'Approve'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <hr style={{ border: 'none', height: '1px', background: 'var(--border-color)' }} />
-              
-              <button 
-                onClick={handleRequestFaucet}
-                disabled={loading.faucet}
-                className="cyber-button cyber-button-secondary"
-                style={{ width: '100%', justifyContent: 'center', padding: '8px' }}
-              >
-                {loading.faucet ? <RefreshCw size={16} className="spin" /> : 'Request Faucet (20 GEN)'}
-              </button>
-            </div>
-          )}
-        </aside>
-
-        {/* Dynamic Panel Workspace */}
-        <main className="glass-panel" style={{ padding: '24px', overflowY: 'auto' }}>
-          
-          {/* TAB 1: BUYER WORKSPACE */}
-          {activeTab === 'buyer' && (
-            <div className="animate-slide-up">
-              <h2 style={{ fontSize: '22px', fontWeight: 600, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                Buyer Service Catalog
-              </h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px' }}>
-                Discover services registered on-chain, pre-fund using escrow deposits, and call them off-chain with programmatic key signatures.
-              </p>
-
-              {/* Service list grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-                {services.length === 0 ? (
-                  <div style={{ gridColumn: '1/-1', border: '1px dashed var(--border-color-hover)', borderRadius: '8px', padding: '32px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    No services found in registry. Deploy contracts and register a service to get started!
-                  </div>
-                ) : (
-                  services.map((svc) => (
-                    <div 
-                      key={svc.address} 
-                      onClick={() => {
-                        setSelectedService(svc);
-                        setApproveSellerAddr(svc.seller); // Pre-fill approve seller form
-                        setTestResult(null);
-                      }}
-                      style={{ 
-                        border: selectedService?.address === svc.address ? '1px solid var(--accent-green)' : '1px solid var(--border-color)',
-                        background: selectedService?.address === svc.address ? 'rgba(0, 255, 102, 0.02)' : 'rgba(255, 255, 255, 0.01)',
-                        cursor: 'pointer',
-                        padding: '16px',
-                        borderRadius: '8px',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span className="badge badge-blue">{svc.category}</span>
-                        <span style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>
-                          {svc.price / 10**18} GEN
-                        </span>
-                      </div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '6px' }}>{svc.name}</h3>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', minHeight: '38px', marginBottom: '12px' }}>{svc.description}</p>
-                      
-                      <div style={{ display: 'flex', gap: '12px', fontSize: '0.75rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
-                        <span>Calls: <strong>{svc.total_calls}</strong></span>
-                        <span>Success: <strong>{svc.success_rate}%</strong></span>
-                        <span>Rating: <strong>{(svc.rating / 10).toFixed(1)}★</strong></span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Execution Frame */}
-              {selectedService && (
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', background: 'var(--bg-console)' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '14px', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Play size={18} style={{ color: 'var(--accent-blue)' }} />
-                    Service Testing Frame: <span style={{ color: 'var(--accent-blue)' }}>{selectedService.name}</span>
-                  </h3>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Input Request Payload</label>
-                      <textarea 
-                        value={testInput}
-                        onChange={(e) => setTestInput(e.target.value)}
-                        className="cyber-input" 
-                        rows={4} 
-                        style={{ resize: 'none', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }} 
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Arbitration Validation Criteria</label>
-                      <textarea 
-                        value={testCriteria}
-                        onChange={(e) => setTestCriteria(e.target.value)}
-                        className="cyber-input" 
-                        rows={4} 
-                        style={{ resize: 'none', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }} 
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      Authorized Seller Wallet: <code style={{ fontSize: '0.75rem' }}>{selectedService.seller.substring(0, 10)}...</code>
-                    </div>
-                    <button 
-                      onClick={executeServiceCall}
-                      disabled={loading.execute || deposit < (selectedService.price / 10**18)}
-                      className="cyber-button cyber-button-secondary"
-                    >
-                      {loading.execute ? <RefreshCw className="spin" size={16} /> : 'Call Service (Off-chain Hot Signature)'}
-                    </button>
-                  </div>
-
-                  {deposit < (selectedService.price / 10**18) && (
-                    <div style={{ marginTop: '10px', color: 'var(--accent-amber)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <AlertTriangle size={14} />
-                      Insufficient Escrow Deposit balance. Please deposit at least {(selectedService.price / 10**18).toFixed(2)} GEN to call this service.
-                    </div>
-                  )}
-
-                  {/* Results and Settlement Frame */}
-                  {testResult && (
-                    <div style={{ marginTop: '20px', border: '1px solid var(--border-color-hover)', borderRadius: '8px', padding: '16px', background: 'rgba(0, 229, 255, 0.01)' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '10px', color: 'var(--accent-blue)' }}>Response Output Payload</h4>
-                      <pre style={{ background: '#050608', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', marginBottom: '16px', color: 'var(--text-primary)' }}>
-                        {testResult.output}
-                      </pre>
-                      
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          Processing Time: <strong style={{ color: 'var(--text-primary)' }}>{testResult.time}ms</strong> | Claim ID: <strong style={{ color: 'var(--text-primary)' }}>{testResult.claimId || 'N/A'}</strong>
-                        </span>
-
-                        {testResult.claimId && (
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={() => handleDisputePayment(testResult.claimId!)}
-                              disabled={loading[testResult.claimId!]}
-                              className="cyber-button cyber-button-danger"
-                              style={{ padding: '8px 14px', fontSize: '0.85rem' }}
-                            >
-                              {loading[testResult.claimId!] ? 'Arbitrating...' : 'Dispute (AI Court)'}
-                            </button>
-                            <button 
-                              onClick={() => handleReleasePayment(testResult.claimId!)}
-                              disabled={loading[testResult.claimId!]}
-                              className="cyber-button cyber-button-primary"
-                              style={{ padding: '8px 14px', fontSize: '0.85rem' }}
-                            >
-                              {loading[testResult.claimId!] ? 'Settling...' : 'Acknowledge & Release'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 2: SELLER WORKSPACE */}
-          {activeTab === 'seller' && (
-            <div className="animate-slide-up" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          {currentPage === 'app' ? (
+            <>
+              <button
+                className={`btn-terminal ${viewMode === 'buyer' ? 'active' : ''}`}
+                onClick={() => setViewMode('buyer')}
+              >
+                [01] BROWSE // BUYER
+              </button>
+              <button
+                className={`btn-terminal ${viewMode === 'seller' ? 'active' : ''}`}
+                onClick={() => setViewMode('seller')}
+              >
+                [02] LIST SERVICE // SELLER
+              </button>
+              <button className="btn-terminal" onClick={() => setCurrentPage('landing')}>
+                [03] LANDING PAGE
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn-terminal" onClick={() => setCurrentPage('deck')}>
+                PRESENTATION DECK →
+              </button>
+              <button className="btn-terminal active" onClick={() => setCurrentPage('app')}>
+                LAUNCH APP →
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      {/* App Alert banners */}
+      {errorMsg && (
+        <div style={{ background: 'rgba(244, 63, 94, 0.1)', border: '1px solid var(--accent-rose)', borderRadius: '8px', padding: '12px 16px', color: 'var(--accent-rose)', margin: '16px 0', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 100, position: 'relative' }}>
+          <AlertCircle size={20} />
+          <span>{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', marginLeft: 'auto', fontWeight: 'bold' }}>X</button>
+        </div>
+      )}
+      {successMsg && (
+        <div style={{ background: 'rgba(52, 211, 153, 0.1)', border: '1px solid var(--accent-emerald)', borderRadius: '8px', padding: '12px 16px', color: 'var(--accent-emerald)', margin: '16px 0', display: 'flex', alignItems: 'center', gap: '8px', zIndex: 100, position: 'relative' }}>
+          <Check size={20} />
+          <span>{successMsg}</span>
+          <button onClick={() => setSuccessMsg(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-emerald)', cursor: 'pointer', marginLeft: 'auto', fontWeight: 'bold' }}>X</button>
+        </div>
+      )}
+
+      {/* 1. LANDING PAGE VIEW */}
+      {currentPage === 'landing' && (
+        <main className="hero-synthora" style={{ minHeight: '80vh' }}>
+          <span className="synthora-badge">
+            ✦ NEXT-GEN AGENTIC FINANCIAL NETWORK
+          </span>
+          <h1 className="hero-display-title">
+            The Autonomous <br />
+            Agentic Financial <br />
+            <span>Network on GenLayer</span>
+          </h1>
+          <p className="hero-lede">
+            AI agents discover, evaluate, and pay specialized provider agents per API call in GEN on GenLayer.
+          </p>
+          <div className="btn-cta-group">
+            <button className="btn-cta-primary" onClick={() => setCurrentPage('app')}>
+              LAUNCH MARKETPLACE APP →
+            </button>
+            <button className="btn-cta-secondary" onClick={() => setCurrentPage('deck')}>
+              VIEW SLIDE DECK →
+            </button>
+          </div>
+        </main>
+      )}
+
+      {/* 2. INTERACTIVE PITCH DECK VIEW */}
+      {currentPage === 'deck' && (
+        <main style={{ marginTop: '40px' }}>
+          <div className="panel-glass" style={{ padding: '40px', borderRadius: '16px', minHeight: '65vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <span className="proof-mark" style={{ fontSize: '13px' }}>
+                  {slide.number} / {SLIDES.length.toString().padStart(2, '0')} • {slide.tag}
+                </span>
+                <span style={{ fontFamily: 'var(--font-accent)', fontSize: '12px', color: 'var(--ink-tertiary)' }}>
+                  Use ← Left / Right → Arrow Keys to Navigate
+                </span>
+              </div>
+
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: '800', letterSpacing: '-0.04em', lineHeight: '1.1', marginBottom: '12px' }}>
+                {slide.title}
+              </h1>
+
+              <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '18px', color: 'var(--accent-cyan)', fontWeight: '600', marginBottom: '32px' }}>
+                {slide.subtitle}
+              </h3>
+
+              <div style={{ display: 'grid', gap: '16px' }}>
+                {slide.points.map((pt, idx) => (
+                  <div key={idx} style={{ padding: '16px 20px', background: 'rgba(0, 0, 0, 0.4)', borderRadius: '10px', border: '1px solid var(--void-05)', fontFamily: pt.startsWith('   •') || pt.startsWith('0x') || pt.startsWith('Live') ? 'var(--font-accent)' : 'var(--font-body)', fontSize: '15px', color: pt.includes('0x') ? 'var(--accent-emerald)' : 'var(--ink-primary)', lineHeight: '1.6' }}>
+                    {pt}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Slide Navigation Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '40px', paddingTop: '20px', borderTop: '1px solid var(--void-05)' }}>
+              <button
+                className="btn-terminal"
+                disabled={currentSlideIdx === 0}
+                onClick={() => setCurrentSlideIdx(prev => Math.max(prev - 1, 0))}
+                style={{ opacity: currentSlideIdx === 0 ? 0.4 : 1 }}
+              >
+                ← PREVIOUS SLIDE
+              </button>
+
+              <div style={{ fontFamily: 'var(--font-accent)', fontSize: '13px', color: 'var(--ink-tertiary)' }}>
+                SLIDE <span style={{ color: 'var(--accent-cyan)', fontWeight: '700' }}>{currentSlideIdx + 1}</span> OF {SLIDES.length}
+              </div>
+
+              <button
+                className="btn-terminal active"
+                disabled={currentSlideIdx === SLIDES.length - 1}
+                onClick={() => setCurrentSlideIdx(prev => Math.min(prev + 1, SLIDES.length - 1))}
+                style={{ opacity: currentSlideIdx === SLIDES.length - 1 ? 0.4 : 1 }}
+              >
+                NEXT SLIDE →
+              </button>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* 3. INSIDE APP VIEW */}
+      {currentPage === 'app' && (
+        <main>
+          {/* BUYER VIEW */}
+          {viewMode === 'buyer' && (
+            <div className="dashboard-grid">
               
-              {/* Left Column: Register service */}
-              <div>
-                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Register AI Service</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                  Register a service contract or endpoint in the directory to begin accepting pre-authorized payment vouchers.
+              {/* Left Column: Settings and Wallet Config */}
+              <aside className="dashboard-sidebar">
+                
+                {/* 1. Category Filter Widget */}
+                <div className="panel-glass filter-card-premium">
+                  <h3 className="sidebar-h3">⚡ Service Marketplace</h3>
+                  <p className="sidebar-p">Filter registered agent capabilities on-chain</p>
+                  <div className="cat-filters-sidebar">
+                    {['all', 'moderation', 'summarization', 'reviewer', 'translation'].map((cat) => (
+                      <button
+                        key={cat}
+                        className={`cat-btn ${categoryFilter === cat ? 'active' : ''}`}
+                        onClick={() => setCategoryFilter(cat)}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. GenLayer Wallet Card */}
+                {wallet && (
+                  <div className="panel-glass wallet-card-premium" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div className="wallet-card-header">
+                      <span className="pulse-dot active-glow"></span>
+                      <span className="wallet-card-title">GENLAYERS WALLET</span>
+                      <span className="wallet-card-net" style={{ textTransform: 'uppercase' }}>STUDIONET</span>
+                    </div>
+
+                    <div style={{ padding: '0 0 10px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                        <span style={{ color: 'var(--ink-secondary)' }}>Burner Wallet:</span>
+                        <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '8px' }}>
+                        <span style={{ color: 'var(--ink-secondary)' }}>GEN Balance:</span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>{wallet.balance.toFixed(2)} GEN</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                        <button 
+                          onClick={handleRequestFaucet}
+                          disabled={loading.faucet}
+                          className="btn-terminal active"
+                          style={{ flex: 1, padding: '8px 12px', fontSize: '10px' }}
+                        >
+                          {loading.faucet ? 'Dispensing...' : 'Request Faucet (20 GEN)'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <hr style={{ border: 'none', height: '1px', background: 'var(--void-05)' }} />
+
+                    {/* Escrow Deposit Balance Settings */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '6px' }}>
+                        <span style={{ color: 'var(--ink-secondary)' }}>Escrow Deposit:</span>
+                        <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>{deposit.toFixed(2)} GEN</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <input 
+                          type="number" 
+                          value={depositAmt}
+                          onChange={(e) => setDepositAmt(e.target.value)}
+                          className="guard-input-field" 
+                          placeholder="Amt" 
+                          style={{ flex: 1, textAlign: 'left', fontSize: '12px', padding: '6px' }} 
+                        />
+                        <button 
+                          onClick={handleDepositEscrow}
+                          disabled={loading.deposit}
+                          className="btn-terminal"
+                          style={{ fontSize: '10px', padding: '6px 12px' }}
+                        >
+                          {loading.deposit ? '...' : 'Deposit'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Pre-Authorization Allowance */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px', color: 'var(--ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Pre-Auth Allowance:
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <input 
+                          type="text" 
+                          value={approveSellerAddr}
+                          onChange={(e) => setApproveSellerAddr(e.target.value)}
+                          className="guard-input-field" 
+                          placeholder="Seller wallet address 0x..." 
+                          style={{ width: '100%', textAlign: 'left', fontSize: '11px', padding: '6px' }} 
+                        />
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input 
+                            type="number" 
+                            value={approveAmt}
+                            onChange={(e) => setApproveAmt(e.target.value)}
+                            className="guard-input-field" 
+                            placeholder="Amt" 
+                            style={{ flex: 1, textAlign: 'left', fontSize: '12px', padding: '6px' }} 
+                          />
+                          <button 
+                            onClick={handleApproveSeller}
+                            disabled={loading.approve}
+                            className="btn-terminal"
+                            style={{ fontSize: '10px', padding: '6px 12px' }}
+                          >
+                            {loading.approve ? '...' : 'Approve'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr style={{ border: 'none', height: '1px', background: 'var(--void-05)' }} />
+
+                    {/* Key Management */}
+                    <div>
+                      {!showPrivateKey ? (
+                        <button 
+                          onClick={() => setShowPrivateKey(true)}
+                          className="btn-terminal"
+                          style={{ width: '100%', fontSize: '10px', padding: '8px' }}
+                        >
+                          Reveal Private Key
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <code style={{ display: 'block', padding: '8px', background: '#000', borderRadius: '6px', border: '1px solid rgba(251,191,36,0.3)', color: 'var(--accent-amber)', fontSize: '9px', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>
+                            {wallet.privateKey}
+                          </code>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(wallet.privateKey);
+                              setSuccessMsg('Key copied!');
+                            }}
+                            className="btn-terminal active"
+                            style={{ fontSize: '10px', padding: '6px' }}
+                          >
+                            Copy Key
+                          </button>
+                          <button 
+                            onClick={() => setShowPrivateKey(false)}
+                            className="btn-terminal"
+                            style={{ fontSize: '10px', padding: '6px' }}
+                          >
+                            Hide Key
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </aside>
+
+              {/* Right Column: Main Capabilities List and Workbench */}
+              <div className="dashboard-main-content">
+                <div className="workbench-section-header">
+                  <h2 className="section-h2">On-Chain Registered Capabilities ({filteredListings.length})</h2>
+                  <p className="section-p">Autonomous endpoints queryable via HTTP 402 challenges backed by GenLayer Escrow</p>
+                </div>
+
+                {fetchError && (
+                  <div style={{ margin: '0 0 20px 0', padding: '12px 18px', background: 'rgba(244, 63, 94, 0.04)', border: '1px solid var(--accent-rose)', borderRadius: '10px', color: 'var(--accent-rose)', fontSize: '12px', fontFamily: 'var(--font-accent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>Connection Warning:</strong> Could not retrieve some live registry metrics from GenLayer network.
+                    </div>
+                    <button onClick={() => setFetchError(null)} style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>×</button>
+                  </div>
+                )}
+
+                {/* Cards Grid */}
+                {isLoadingOnChain ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: 'var(--font-accent)', color: 'var(--ink-tertiary)' }}>
+                    Syncing with PayPerRegistry on GenLayer Studionet...
+                  </div>
+                ) : filteredListings.length === 0 ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center', border: '1px solid var(--void-05)', borderRadius: '12px', color: 'var(--ink-tertiary)', fontFamily: 'var(--font-accent)' }}>
+                    No active seller listings found in registry. Select "LIST SERVICE" to register a capability.
+                  </div>
+                ) : (
+                  <div className="service-grid">
+                    {filteredListings.map((listing) => (
+                      <div key={listing.address} className="card-service" onClick={() => { setSelectedListing(listing); setApproveSellerAddr(listing.seller); setTestResult(null); }} style={{ cursor: 'pointer' }}>
+                        <div>
+                          <div className="card-head">
+                            <span className="badge-category">{listing.category}</span>
+                            <div className="status-online">
+                              <span className="pulse-dot"></span>
+                              ONLINE
+                            </div>
+                          </div>
+
+                          <h3 className="card-title">{listing.name}</h3>
+                          <p className="card-description">{listing.description}</p>
+                        </div>
+
+                        <div>
+                          <div className="metrics-row">
+                            <div>
+                              <div className="metric-lbl">RATING</div>
+                              <div className="metric-val" style={{ color: 'var(--accent-amber)' }}>{(listing.rating / 10).toFixed(1)}/10★</div>
+                            </div>
+                            <div>
+                              <div className="metric-lbl">SUCCESS</div>
+                              <div className="metric-val" style={{ color: 'var(--accent-emerald)' }}>{listing.success_rate}%</div>
+                            </div>
+                            <div>
+                              <div className="metric-lbl">CALLS</div>
+                              <div className="metric-val" style={{ color: 'var(--accent-cyan)' }}>{listing.total_calls}</div>
+                            </div>
+                          </div>
+
+                          <div className="card-foot">
+                            <div>
+                              <div className="metric-lbl">PRICE / CALL</div>
+                              <div className="price-usdc" style={{ color: 'var(--accent-emerald)' }}>{listing.price / 10**18} GEN</div>
+                            </div>
+                            <div className="endpoint-lbl">/api/{listing.category}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Service Detail & Interactive Test Modal */}
+                {selectedListing && (
+                  <div className="modal-overlay" onClick={() => setSelectedListing(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+                      <div className="modal-header">
+                        <span className="badge-category">{selectedListing.category}</span>
+                        <button className="modal-close-btn" onClick={() => setSelectedListing(null)}>×</button>
+                      </div>
+
+                      <h2 className="modal-title">{selectedListing.name}</h2>
+                      <p className="modal-desc" style={{ marginBottom: '20px' }}>{selectedListing.description}</p>
+
+                      <div className="modal-info-grid" style={{ marginBottom: '24px' }}>
+                        <div className="info-item">
+                          <span className="info-lbl">Price Per Call</span>
+                          <span className="info-val">{selectedListing.price / 10**18} GEN</span>
+                        </div>
+                        <div className="info-item">
+                          <span className="info-lbl">Seller Wallet Address</span>
+                          <span className="info-val copyable" onClick={() => { navigator.clipboard.writeText(selectedListing.seller); alert("Copied!"); }}>
+                            {selectedListing.seller.slice(0, 10)}...{selectedListing.seller.slice(-8)} 📋
+                          </span>
+                        </div>
+                        <div className="info-item">
+                          <span className="info-lbl">API Endpoint Identifier</span>
+                          <span className="info-val copyable" onClick={() => { navigator.clipboard.writeText(selectedListing.address); alert("Copied!"); }}>
+                            {selectedListing.address.slice(0, 18)}... 📋
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Interactive Testing Frame */}
+                      <div style={{ background: '#030407', borderRadius: '12px', padding: '18px', border: '1px solid var(--void-05)', marginBottom: '20px' }}>
+                        <h4 style={{ fontFamily: 'var(--font-display)', color: 'var(--accent-cyan)', fontSize: '15px', fontWeight: 'bold', marginBottom: '14px', borderBottom: '1px solid var(--void-05)', paddingBottom: '8px' }}>
+                          ⚡ Interactive Service Workbench
+                        </h4>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
+                          <div>
+                            <label style={{ fontSize: '11px', color: 'var(--ink-secondary)', fontFamily: 'var(--font-accent)', display: 'block', marginBottom: '4px' }}>INPUT PAYLOAD</label>
+                            <textarea 
+                              value={testInput}
+                              onChange={(e) => setTestInput(e.target.value)}
+                              className="textarea-cell"
+                              rows={3} 
+                              style={{ width: '100%', background: '#000', border: '1px solid var(--void-05)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '12px', resize: 'none' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '11px', color: 'var(--ink-secondary)', fontFamily: 'var(--font-accent)', display: 'block', marginBottom: '4px' }}>VALIDATION CRITERIA (JURY)</label>
+                            <textarea 
+                              value={testCriteria}
+                              onChange={(e) => setTestCriteria(e.target.value)}
+                              className="textarea-cell"
+                              rows={3} 
+                              style={{ width: '100%', background: '#000', border: '1px solid var(--void-05)', borderRadius: '6px', padding: '8px', color: '#fff', fontSize: '12px', resize: 'none' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--ink-tertiary)' }}>
+                            Requires Escrow Balance: >= {selectedListing.price / 10**18} GEN
+                          </span>
+                          <button 
+                            onClick={executeServiceCall}
+                            disabled={loading.execute || deposit < (selectedListing.price / 10**18)}
+                            className="btn-terminal active"
+                            style={{ padding: '8px 18px' }}
+                          >
+                            {loading.execute ? 'Invoking Seller...' : 'Call Service (Off-chain Hot Signature)'}
+                          </button>
+                        </div>
+
+                        {deposit < (selectedListing.price / 10**18) && (
+                          <div style={{ marginTop: '10px', color: 'var(--accent-amber)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <AlertTriangle size={12} /> Insufficient Escrow Deposit. Fill deposit sidebar first.
+                          </div>
+                        )}
+
+                        {/* Test output settlement frame */}
+                        {testResult && (
+                          <div style={{ marginTop: '16px', borderTop: '1px solid var(--void-05)', paddingTop: '16px' }}>
+                            <h5 style={{ fontSize: '12px', color: 'var(--accent-emerald)', fontFamily: 'var(--font-accent)', marginBottom: '8px' }}>RECEIVED SERVICE OUTPUT</h5>
+                            <pre style={{ background: '#000', padding: '10px', borderRadius: '6px', border: '1px solid var(--void-05)', fontSize: '11px', color: '#fff', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
+                              {testResult.output}
+                            </pre>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--ink-secondary)' }}>
+                                Duration: <strong>{testResult.time}ms</strong> | Claim ID: <strong>{testResult.claimId || 'N/A'}</strong>
+                              </span>
+
+                              {testResult.claimId && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button 
+                                    onClick={() => handleDisputePayment(testResult.claimId!)}
+                                    disabled={loading[testResult.claimId!]}
+                                    className="btn-terminal"
+                                    style={{ borderColor: 'var(--accent-rose)', color: 'var(--accent-rose)', padding: '6px 12px' }}
+                                  >
+                                    {loading[testResult.claimId!] ? 'Disputing...' : 'Dispute (AI Court)'}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleReleasePayment(testResult.claimId!)}
+                                    disabled={loading[testResult.claimId!]}
+                                    className="btn-terminal active"
+                                    style={{ padding: '6px 12px' }}
+                                  >
+                                    {loading[testResult.claimId!] ? 'Releasing...' : 'Acknowledge & Release'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* GenVM Monospace Active Console Visualizer */}
+                <div style={{ marginTop: '40px' }}>
+                  <div className="workbench-section-header">
+                    <h3 className="section-h2" style={{ fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Terminal size={18} style={{ color: 'var(--accent-cyan)' }} />
+                      GenVM Active Consensus Console
+                    </h3>
+                    <p className="section-p">Real-time validator votes, block logs, and judge jury decisions on Studionet</p>
+                  </div>
+                  <div className="console-terminal" style={{ minHeight: '180px', maxHeight: '240px' }}>
+                    {consoleLogs.length === 0 ? (
+                      <div style={{ color: 'var(--ink-tertiary)', textAlign: 'center', marginTop: '70px' }}>
+                        --- Console Idle. Call services or request deposits to display active consensus logs. ---
+                      </div>
+                    ) : (
+                      consoleLogs.map((item, idx) => (
+                        <div key={idx} className="log-row">
+                          <span className="log-t">[{item.timestamp}]</span>
+                          <span className={`log-tag ${
+                            item.type === 'success' ? 'POLICY_APPROVED' :
+                            item.type === 'warning' ? 'X402_CHALLENGE' :
+                            item.type === 'consensus' ? 'PLANNING' : 'DISCOVERY'
+                          }`}>
+                            {item.type.toUpperCase()}
+                          </span>
+                          <span className="log-text">{item.message}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* SELLER VIEW */}
+          {viewMode === 'seller' && (
+            <div>
+              <div className="seller-panel">
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: '800', marginBottom: '8px' }}>Register Seller Capability</h2>
+                <p style={{ color: 'var(--ink-secondary)', fontSize: '14px', marginBottom: '28px' }}>
+                  Publish your wrapped HTTP API capability endpoint to the PayPerRegistry contract on GenLayer Studionet.
                 </p>
 
-                <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Service Name</label>
-                    <input 
-                      type="text" 
-                      value={regForm.name}
-                      onChange={(e) => setRegForm(prev => ({ ...prev, name: e.target.value }))}
-                      className="cyber-input" 
-                      placeholder="e.g. GPT-4 Code Reviewer" 
+                <form onSubmit={handleRegisterService}>
+                  <div className="form-group-cell">
+                    <label className="label-cell">Service Name</label>
+                    <input
+                      type="text"
+                      className="input-cell"
+                      placeholder="e.g. Code Security Linter API"
+                      value={sellerForm.name}
+                      onChange={(e) => setSellerForm({ ...sellerForm, name: e.target.value })}
+                      required
                     />
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Price (GEN)</label>
-                      <input 
-                        type="number" 
+                  <div className="form-group-cell">
+                    <label className="label-cell">Service Endpoint Address (Or Identifier)</label>
+                    <input
+                      type="text"
+                      className="input-cell"
+                      placeholder="0x... or mock address string"
+                      value={sellerForm.endpoint}
+                      onChange={(e) => setSellerForm({ ...sellerForm, endpoint: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <div className="form-group-cell">
+                      <label className="label-cell">Price per Call (GEN)</label>
+                      <input
+                        type="number"
                         step="0.001"
-                        value={regForm.price}
-                        onChange={(e) => setRegForm(prev => ({ ...prev, price: e.target.value }))}
-                        className="cyber-input" 
-                        placeholder="0.01" 
+                        className="input-cell"
+                        value={sellerForm.pricePerCall}
+                        onChange={(e) => setSellerForm({ ...sellerForm, pricePerCall: e.target.value })}
+                        required
                       />
                     </div>
-                    <div>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Category</label>
-                      <select 
-                        value={regForm.category}
-                        onChange={(e) => setRegForm(prev => ({ ...prev, category: e.target.value }))}
-                        className="cyber-input cyber-select"
+
+                    <div className="form-group-cell">
+                      <label className="label-cell">Category</label>
+                      <select
+                        className="select-cell"
+                        value={sellerForm.category}
+                        onChange={(e) => setSellerForm({ ...sellerForm, category: e.target.value })}
                       >
-                        <option value="summarization">summarization</option>
                         <option value="moderation">moderation</option>
+                        <option value="summarization">summarization</option>
                         <option value="reviewer">reviewer</option>
                         <option value="translation">translation</option>
                       </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Service Contract Address (Optional)</label>
-                    <input 
-                      type="text" 
-                      value={regForm.contractAddress}
-                      onChange={(e) => setRegForm(prev => ({ ...prev, contractAddress: e.target.value }))}
-                      className="cyber-input" 
-                      placeholder="Auto-generates if left blank" 
-                    />
+                  <div className="form-group-cell">
+                    <label className="label-cell">Description</label>
+                    <textarea
+                      className="textarea-cell"
+                      rows={3}
+                      placeholder="Describe what capability your agent endpoint provides..."
+                      value={sellerForm.description}
+                      onChange={(e) => setSellerForm({ ...sellerForm, description: e.target.value })}
+                    ></textarea>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Description</label>
-                    <textarea 
-                      value={regForm.description}
-                      onChange={(e) => setRegForm(prev => ({ ...prev, description: e.target.value }))}
-                      className="cyber-input" 
-                      rows={3} 
-                      placeholder="Summarize the validation parameters of this endpoint..." 
-                      style={{ resize: 'none' }}
-                    />
-                  </div>
-
-                  <button 
-                    onClick={handleRegisterService}
-                    disabled={loading.register || !regForm.name}
-                    className="cyber-button cyber-button-secondary"
-                    style={{ justifyContent: 'center', marginTop: '8px' }}
-                  >
-                    {loading.register ? <RefreshCw className="spin" size={16} /> : 'Register Service Listing'}
+                  <button type="submit" disabled={loading.register} className="btn-publish">
+                    {loading.register ? 'Publishing...' : 'Publish to PayPerRegistry Contract'}
                   </button>
-                </div>
-              </div>
-
-              {/* Right Column: Claims Dashboard */}
-              <div>
-                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Payment Claims</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                  Track incoming billing vouchers and consensus dispute resolutions registered on-chain.
-                </p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {claims.length === 0 ? (
-                    <div style={{ border: '1px dashed var(--border-color-hover)', borderRadius: '8px', padding: '32px', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(0,0,0,0.05)' }}>
-                      No claims logged.
-                    </div>
-                  ) : (
-                    claims.map((claim) => (
-                      <div 
-                        key={claim.id} 
-                        style={{ 
-                          border: '1px solid var(--border-color)',
-                          background: 'var(--bg-console)',
-                          padding: '14px',
-                          borderRadius: '8px'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>{claim.id}</span>
-                          <span className={`badge ${
-                            claim.status === 'SETTLED' ? 'badge-green' :
-                            claim.status === 'PENDING' ? 'badge-amber' : 'badge-red'
-                          }`}>{claim.status}</span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                          <div>Buyer: <code style={{ fontSize: '0.75rem' }}>{claim.buyer}</code></div>
-                          <div>Service: <code style={{ fontSize: '0.75rem' }}>{claim.service_address.substring(0, 18)}...</code></div>
-                          <div>Amount: <strong style={{ color: 'var(--text-primary)' }}>{claim.amount / 10**18} GEN</strong></div>
-                        </div>
-
-                        {claim.status === 'PENDING' && wallet?.address.toLowerCase() === claim.buyer.toLowerCase() && (
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                            <button 
-                              onClick={() => handleDisputePayment(claim.id)}
-                              disabled={loading[claim.id]}
-                              className="cyber-button cyber-button-danger"
-                              style={{ flex: 1, padding: '6px', fontSize: '0.8rem', justifyContent: 'center' }}
-                            >
-                              {loading[claim.id] ? 'Disputing...' : 'Dispute (AI Court)'}
-                            </button>
-                            <button 
-                              onClick={() => handleReleasePayment(claim.id)}
-                              disabled={loading[claim.id]}
-                              className="cyber-button cyber-button-primary"
-                              style={{ flex: 1, padding: '6px', fontSize: '0.8rem', justifyContent: 'center' }}
-                            >
-                              {loading[claim.id] ? 'Releasing...' : 'Release Payment'}
-                            </button>
-                          </div>
-                        )}
-
-                        {claim.verdict_reason && (
-                          <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '8px', fontSize: '0.75rem', color: 'var(--accent-amber)' }}>
-                            <strong>AI Judge Verdict Reason:</strong> {claim.verdict_reason}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
+                </form>
               </div>
             </div>
           )}
-
-          {/* TAB 3: GENVM CONSENSUS CONSOLE */}
-          {activeTab === 'console' && (
-            <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>GenVM Active Simulator Logs</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                Real-time consensus validator execution logs and smart contract transaction state updates.
-              </p>
-
-              <div style={{ flex: 1, minHeight: '380px', background: '#040507', border: '1px solid var(--border-color-hover)', borderRadius: '8px', padding: '16px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {consoleLogs.length === 0 ? (
-                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '160px' }}>
-                    --- Console Idle. Call services or dispute payments to view active transactions. ---
-                  </div>
-                ) : (
-                  consoleLogs.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '10px', lineHeight: 1.4 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>[{item.timestamp}]</span>
-                      <span style={{ 
-                        color: 
-                          item.type === 'success' ? 'var(--accent-green)' :
-                          item.type === 'warning' ? 'var(--accent-amber)' :
-                          item.type === 'error' ? 'var(--accent-red)' :
-                          item.type === 'consensus' ? 'var(--accent-blue)' : '#cbd5e1'
-                      }}>
-                        {item.message}
-                      </span>
-                    </div>
-                  ))
-                )}
-                <div ref={consoleEndRef} />
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: SETTINGS & DEPLOYMENT */}
-          {activeTab === 'settings' && (
-            <div className="animate-slide-up" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-              
-              {/* Contract settings */}
-              <div>
-                <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Contract Administration</h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                  Deploy new contract iterations or view current address parameters on the GenVM local test network.
-                </p>
-
-                <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <button 
-                    onClick={handleDeployContracts}
-                    disabled={loading.deploy}
-                    className="cyber-button cyber-button-primary"
-                    style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-                  >
-                    {loading.deploy ? <RefreshCw className="spin" size={18} /> : 'Compile & Deploy Contracts'}
-                  </button>
-
-                  <hr style={{ border: 'none', height: '1px', background: 'var(--border-color)' }} />
-
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Registry Address</label>
-                    <input type="text" readOnly value={config.registry} className="cyber-input" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', background: 'rgba(0,0,0,0.1)' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Escrow Address</label>
-                    <input type="text" readOnly value={config.escrow} className="cyber-input" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', background: 'rgba(0,0,0,0.1)' }} />
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Faucet Address</label>
-                    <input type="text" readOnly value={config.faucet} className="cyber-input" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', background: 'rgba(0,0,0,0.1)' }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Wallet settings */}
-              {wallet && (
-                <div>
-                  <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Burner Wallet Settings</h2>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-                    Reveal or export your programmatic burner wallet's private key to import it elsewhere.
-                  </p>
-
-                  <div className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Wallet Address</span>
-                      <code style={{ display: 'block', padding: '10px', background: 'var(--bg-console)', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                        {wallet.address}
-                      </code>
-                    </div>
-
-                    <div>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Private Key</span>
-                      
-                      {!showPrivateKey ? (
-                        <button 
-                          onClick={() => setShowPrivateKey(true)}
-                          className="cyber-button"
-                          style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
-                        >
-                          <Key size={16} /> Reveal Private Key
-                        </button>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <code style={{ display: 'block', padding: '10px', background: 'var(--bg-console)', borderRadius: '6px', border: '1px solid var(--accent-amber-border)', color: 'var(--accent-amber)', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                            {wallet.privateKey}
-                          </code>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={() => {
-                                navigator.clipboard.writeText(wallet.privateKey);
-                                setSuccessMsg('Private key copied to clipboard!');
-                              }}
-                              className="cyber-button cyber-button-primary"
-                              style={{ flex: 1, padding: '8px', fontSize: '0.85rem', justifyContent: 'center' }}
-                            >
-                              Copy Key
-                            </button>
-                            <button 
-                              onClick={() => setShowPrivateKey(false)}
-                              className="cyber-button"
-                              style={{ flex: 1, padding: '8px', fontSize: '0.85rem', justifyContent: 'center' }}
-                            >
-                              Hide
-                            </button>
-                          </div>
-                          <span style={{ color: 'var(--accent-red)', fontSize: '0.75rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <AlertCircle size={12} /> WARNING: Never share this key with anyone. It controls your GEN tokens.
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
         </main>
-      </div>
+      )}
 
       {/* Footer */}
-      <footer style={{ marginTop: '40px', borderTop: '1px solid var(--border-color)', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-        <span>&copy; 2026 PayPer 2.0. Powered by GenLayer Intelligent Contracts & AI Consensus.</span>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <a href="https://github.com/ODbeke/PayPer-2.0" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}>
-            GitHub Repository <ExternalLink size={12} />
-          </a>
-        </div>
-      </footer>
+      {currentPage !== 'landing' && (
+        <footer className="footer-admon">
+          <span className="footer-brand">PayPer.</span>
+          <span>Built for GenLayer Intelligent Contract Integration • Deployed Contracts: Registry ({config.registry?.slice(0, 10)}...), Escrow ({config.escrow?.slice(0, 10)}...)</span>
+        </footer>
+      )}
     </div>
   );
 }
-
-export default App;
