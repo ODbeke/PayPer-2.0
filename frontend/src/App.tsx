@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Wallet, Cpu, Terminal, Plus, Check, RefreshCw, Key, 
-  Settings, ExternalLink, AlertTriangle, AlertCircle, Play, 
-  ChevronRight, Info, Sparkles, ChevronDown, LogOut
+  Terminal, Check, AlertTriangle, AlertCircle
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import './index.css';
@@ -156,7 +154,6 @@ export default function App() {
 
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [listings, setListings] = useState<ServiceListing[]>([]);
-  const [claims, setClaims] = useState<ClaimRecord[]>([]);
   const [totalTxCount, setTotalTxCount] = useState(0);
   const [totalVolume, setTotalVolume] = useState(0);
   const [isLoadingOnChain, setIsLoadingOnChain] = useState(true);
@@ -296,16 +293,7 @@ export default function App() {
       }
     }
 
-    // Fetch claims list
-    if (config.escrow) {
-      try {
-        const res = await fetch(`${API_BASE}/escrow/claims`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setClaims(data);
-        }
-      } catch (e) {}
-    }
+    // Fetch claims list skipped (unused local)
   }, [wallet, config]);
 
   // Initial load
