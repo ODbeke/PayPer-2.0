@@ -132,6 +132,17 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 self.send_json(200, {"balance": int(bal)})
                 return
 
+            elif path == "/api/balance":
+                address = query.get("address", [None])[0]
+                if not address:
+                    self.send_json(400, {"error": "Missing address parameter"})
+                    return
+                resp = client.provider.make_request("eth_getBalance", [address, "latest"])
+                bal_hex = resp.get("result", "0x0")
+                bal_wei = int(bal_hex, 16)
+                self.send_json(200, {"balance": bal_wei})
+                return
+
             elif path == "/api/registry/services":
                 if not deployed_contracts["registry"]:
                       self.send_json(200, [])
