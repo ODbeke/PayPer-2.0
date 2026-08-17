@@ -1,6 +1,50 @@
 # v0.2.16
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
-from genlayer import *
+try:
+    from genlayer import *
+except ModuleNotFoundError:
+    # Local unit test mocks
+    class Address:
+        def __init__(self, val):
+            self.val = str(val)
+        @property
+        def as_hex(self):
+            return self.val
+    class u256(int):
+        pass
+    class TreeMap:
+        def __init__(self):
+            self.data = {}
+        def get(self, key, default=None):
+            return self.data.get(key, default)
+        def __getitem__(self, key):
+            return self.data[key]
+        def __setitem__(self, key, value):
+            self.data[key] = value
+        def __contains__(self, key):
+            return key in self.data
+    class DynArray:
+        def __init__(self):
+            self.data = []
+        def append(self, item):
+            self.data.append(item)
+        def __len__(self):
+            return len(self.data)
+        def __getitem__(self, key):
+            return self.data[key]
+    class MockMessage:
+        sender_address = Address("0x0000000000000000000000000000000000000000")
+        value = 0
+    class MockVM:
+        class UserError(Exception):
+            pass
+    class MockGL:
+        message = MockMessage()
+        message_raw = {"datetime": "2026-08-17T00:00:00Z"}
+        vm = MockVM()
+        Contract = object
+    gl = MockGL()
+
 import json
 
 # Fallback definition for local Python import compatibility in tests
@@ -20,6 +64,8 @@ class PayPerRegistry(gl.Contract):
     def __init__(self) -> None:
         self.owner = gl.message.sender_address
         self.escrow_address = gl.message.sender_address # Set owner as initial escrow to allow manual config
+        self.listings = TreeMap()
+        self.service_addresses = DynArray()
         self.total_transactions = u256(0)
         self.total_gen_volume = u256(0)
 
