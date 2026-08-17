@@ -32,20 +32,6 @@ interface ServiceListing {
   active: boolean;
 }
 
-interface ClaimRecord {
-  id: string;
-  buyer: string;
-  seller: string;
-  service_address: string;
-  amount: number;
-  response_time_ms: number;
-  input: string;
-  output: string;
-  criteria: string;
-  status: string; // PENDING, SETTLED, DISPUTED, REFUNDED
-  timestamp: string;
-  verdict_reason: string;
-}
 
 interface ConsoleLog {
   timestamp: string;
