@@ -17,7 +17,7 @@ except ImportError:
 
 # Default Local RPC URL
 RPC_URL = "http://127.0.0.1:4000/api"
-client = create_client(url=RPC_URL)
+client = create_client(endpoint=RPC_URL)
 
 CONFIG_PATH = Path(__file__).parent / "contracts.json"
 
