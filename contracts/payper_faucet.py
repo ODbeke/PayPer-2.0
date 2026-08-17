@@ -10,6 +10,8 @@ except ModuleNotFoundError:
         @property
         def as_hex(self):
             return self.val
+        def __eq__(self, other):
+            return self.as_hex.lower() == getattr(other, 'as_hex', '').lower()
     class u256(int):
         pass
     class TreeMap:
@@ -29,26 +31,52 @@ except ModuleNotFoundError:
     class MockVM:
         class UserError(Exception):
             pass
+        def run_nondet_unsafe(self, leader, validator):
+            return leader()
+    class MockWriteDecorator:
+        def __call__(self, func):
+            return func
+        def payable(self, func):
+            return func
+    class MockPublicDecorator:
+        write = MockWriteDecorator()
+        def view(self, func):
+            return func
     class MockGL:
         message = MockMessage()
         message_raw = {"datetime": "2026-08-17T00:00:00Z"}
         vm = MockVM()
-        Contract = object
-        def get_balance(self, addr):
-            return 100 * 10**18
-        def get_address(self):
-            return "0x0000000000000000000000000000000000000000"
+        public = MockPublicDecorator()
         def transfer(self, to_addr, amt):
             pass
+        def get_address(self):
+            return "0x0000000000000000000000000000000000000000"
     gl = MockGL()
+    
+    class LocalContract:
+        def __init__(self, *args, **kwargs):
+            for name, type_hint in getattr(self, '__annotations__', {}).items():
+                if 'TreeMap' in str(type_hint):
+                    setattr(self, name, TreeMap())
+                elif 'DynArray' in str(type_hint):
+                    setattr(self, name, DynArray())
+    gl.Contract = LocalContract
+
+# Fallback definition for local Python import compatibility in tests
+try:
+    u256
+except NameError:
+    u256 = int
 
 class PayPerFaucet(gl.Contract):
     owner: Address
+    reservoir_balance: u256
     last_requests: TreeMap[str, str] # Maps recipient address (hex) -> last request date (YYYY-MM-DD)
 
     def __init__(self) -> None:
+        super().__init__()
         self.owner = gl.message.sender_address
-        self.last_requests = TreeMap()
+        self.reservoir_balance = u256(0)
 
     @gl.public.write
     def request_faucet(self, recipient_address: str) -> None:
@@ -66,22 +94,27 @@ class PayPerFaucet(gl.Contract):
 
         # Fund amount: 20 GEN = 20 * 10^18 Wei
         payout_amt = u256(20000000000000000000)
+        
+        # Verify contract has enough state-tracked balance
+        assert self.reservoir_balance >= payout_amt, "Faucet reservoir is dry! Please notify the owner."
 
-        # Execute transfer (underlying VM will revert if contract balance is insufficient)
+        # Execute transfer
         gl.transfer(Address(clean_addr), payout_amt)
 
-        # Update last request date
+        # Update balance and last request date
+        self.reservoir_balance -= payout_amt
         self.last_requests[clean_addr] = current_date
 
     @gl.public.write.payable
     def deposit_faucet_funds(self) -> None:
         """Allows anyone to fund the faucet reservoir."""
         assert gl.message.value > 0, "Deposit amount must be greater than zero"
+        self.reservoir_balance += gl.message.value
 
     @gl.public.view
     def get_faucet_balance(self) -> u256:
         """Returns the current balance of the faucet in Wei."""
-        return gl.get_balance(gl.get_address())
+        return self.reservoir_balance
 
     @gl.public.view
     def get_last_request_date(self, user_address: str) -> str:
