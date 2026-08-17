@@ -114,7 +114,7 @@ def test_payper_marketplace_escrow_lifecycle():
     assert int(claims[0]["amount"]) == claim_val
 
     # 5. Buyer releases the claim
-    rc_release = escrow.connect(buyer).release_claim(args=[claim_id]).transact()
+    rc_release = escrow.connect(buyer).release_claim(args=[claim_id]).transact(wait_triggered_transactions=True)
     if not tx_execution_succeeded(rc_release):
         import pprint
         raise Exception(f"Release claim failed! Receipt:\n{pprint.pformat(rc_release)}")
