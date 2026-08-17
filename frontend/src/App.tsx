@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
-  Wallet, Shield, Cpu, Terminal, Plus, Check, RefreshCw, Key, 
-  ArrowRight, Settings, ExternalLink, AlertTriangle, AlertCircle, Play
+  Wallet, Cpu, Terminal, Plus, Check, RefreshCw, Key, 
+  Settings, ExternalLink, AlertTriangle, AlertCircle, Play
 } from 'lucide-react';
 import { ethers } from 'ethers';
 import './App.css';
@@ -96,7 +96,7 @@ function App() {
   // --- Load / Create Burner Wallet ---
   useEffect(() => {
     let key = localStorage.getItem('payper_burner_key');
-    let walletInstance: ethers.Wallet;
+    let walletInstance: any;
     
     if (key) {
       try {
@@ -571,7 +571,7 @@ function App() {
                 {wallet.balance.toFixed(2)} GEN
               </span>
             </div>
-            <div style={{ background: 'var(--accent-green-glow)', p: '8px', borderRadius: '6px', border: '1px solid var(--accent-green-border)' }}>
+            <div style={{ background: 'var(--accent-green-glow)', padding: '8px', borderRadius: '6px', border: '1px solid var(--accent-green-border)' }}>
               <Wallet size={18} style={{ color: 'var(--accent-green)' }} />
             </div>
           </div>
