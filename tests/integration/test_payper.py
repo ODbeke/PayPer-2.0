@@ -27,6 +27,7 @@ def test_payper_faucet_lifecycle():
     assert int(bal) == fund_amt
 
     # 2. User requests faucet (should succeed and get 20 GEN)
+    rc_req = faucet.connect(user).request_faucet(args=[user.address]).transact()
     if not tx_execution_succeeded(rc_req):
         import pprint
         raise Exception(f"Faucet request failed! Receipt:\n{pprint.pformat(rc_req)}")
@@ -114,7 +115,9 @@ def test_payper_marketplace_escrow_lifecycle():
 
     # 5. Buyer releases the claim
     rc_release = escrow.connect(buyer).release_claim(args=[claim_id]).transact()
-    assert tx_execution_succeeded(rc_release)
+    if not tx_execution_succeeded(rc_release):
+        import pprint
+        raise Exception(f"Release claim failed! Receipt:\n{pprint.pformat(rc_release)}")
     
     # Check finalized claim status
     final_claim = escrow.get_claim(args=[claim_id]).call()
