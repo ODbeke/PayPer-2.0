@@ -27,7 +27,7 @@ def test_payper_faucet_lifecycle():
     assert int(bal) == fund_amt
 
     # 2. User requests faucet (should succeed and get 20 GEN)
-    rc_req = faucet.connect(user).request_faucet(args=[user.address.as_hex]).transact()
+    rc_req = faucet.connect(user).request_faucet(args=[user.address]).transact()
     assert tx_execution_succeeded(rc_req)
     
     # Check updated balance
@@ -35,7 +35,7 @@ def test_payper_faucet_lifecycle():
     assert int(bal_after) == fund_amt - (20 * 10**18)
     
     # 3. User requests again on the same day (should fail)
-    rc_req_fail = faucet.connect(user).request_faucet(args=[user.address.as_hex]).transact()
+    rc_req_fail = faucet.connect(user).request_faucet(args=[user.address]).transact()
     assert tx_execution_failed(rc_req_fail)
 
 def test_payper_marketplace_escrow_lifecycle():
@@ -52,7 +52,7 @@ def test_payper_marketplace_escrow_lifecycle():
 
     buyer = create_account()
     seller = create_account()
-    service_contract_address = create_account().address.as_hex
+    service_contract_address = create_account().address
 
     # 1. Seller registers service in the registry
     price_wei = 1 * 10**16  # 0.01 GEN
@@ -78,23 +78,23 @@ def test_payper_marketplace_escrow_lifecycle():
     rc_dep = escrow.connect(buyer).deposit().transact(value=deposit_amt)
     assert tx_execution_succeeded(rc_dep)
     
-    buyer_bal = escrow.get_deposit(args=[buyer.address.as_hex]).call()
+    buyer_bal = escrow.get_deposit(args=[buyer.address]).call()
     assert int(buyer_bal) == deposit_amt
 
     # 3. Buyer approves the service seller
     rc_approve = escrow.connect(buyer).approve_seller(
-        args=[seller.address.as_hex, deposit_amt]
+        args=[seller.address, deposit_amt]
     ).transact()
     assert tx_execution_succeeded(rc_approve)
     
-    allowance = escrow.get_allowance(args=[buyer.address.as_hex, seller.address.as_hex]).call()
+    allowance = escrow.get_allowance(args=[buyer.address, seller.address]).call()
     assert int(allowance) == deposit_amt
 
     # 4. Seller claims payment for a successful task execution
     claim_val = price_wei
     rc_claim = escrow.connect(seller).claim_payment(
         args=[
-            buyer.address.as_hex,
+            buyer.address,
             claim_val,
             180, # response_time_ms
             "Please summarize this long document.", # input
