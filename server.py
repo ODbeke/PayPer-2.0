@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from genlayer import create_client, create_account
+    from genlayer_py import create_client, create_account
     from eth_account import Account
 except ImportError:
     print("Error: genlayer SDK not found in path.")
