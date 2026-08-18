@@ -186,7 +186,8 @@ class PayPerEscrow(gl.Contract):
         # Cryptographic Signature Verification of Voucher
         from eth_account import Account
         from eth_account.messages import encode_defunct
-        msg_text = f"PayPer Voucher: {buyer} to {seller} for {int(amt)} Wei. Output: {output_payload}"
+        clean_output = str(output_payload).strip()
+        msg_text = f"PayPer Voucher: {buyer} to {seller} for {int(amt)} Wei. Output: {clean_output}"
         message = encode_defunct(text=msg_text)
         try:
             recovered_addr = Account.recover_message(message, signature=signature_hex)

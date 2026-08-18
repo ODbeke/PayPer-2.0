@@ -475,6 +475,39 @@ export default function App() {
     let durationMs = 0;
 
     try {
+      // 1. Verify current allowance on-chain (prevent copy-paste address errors)
+      log(`[ESCROW] Verifying seller allowance...`, 'info');
+      const allowanceRes = await fetch(`${API_BASE}/escrow/allowance?buyer=${wallet.address}&seller=${selectedListing.seller}`);
+      const allowanceData = await allowanceRes.json();
+      
+      const currentAllowance = allowanceData.allowance !== undefined ? BigInt(allowanceData.allowance) : 0n;
+      const requiredAmt = BigInt(selectedListing.price);
+      
+      if (currentAllowance < requiredAmt) {
+        log(`[ESCROW] Allowance insufficient (${Number(currentAllowance)/10**18} GEN). Submitting auto-approval for ${Number(requiredAmt * 5n)/10**18} GEN...`, 'info');
+        
+        // Auto-approve 5x the call cost to optimize transaction overhead
+        const approveAmtWei = (requiredAmt * 5n).toString();
+        const appRes = await fetch(`${API_BASE}/escrow/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            private_key: wallet.privateKey,
+            seller: selectedListing.seller,
+            amount: approveAmtWei
+          })
+        });
+        const appData = await appRes.json();
+        
+        if (!appRes.ok || !appData.tx_hash) {
+          throw new Error(appData.error || "Failed to approve seller allowance");
+        }
+        
+        log(`[ESCROW] Allowance auto-approved on-chain! Tx: ${appData.tx_hash.substring(0, 16)}...`, 'success');
+      } else {
+        log(`[ESCROW] Allowance verification passed: ${Number(currentAllowance)/10**18} GEN authorized.`, 'success');
+      }
+
       if (selectedListing.endpoint && selectedListing.endpoint.startsWith("http")) {
         log(`[OFF_CHAIN] Calling live API endpoint: ${selectedListing.endpoint}...`, 'info');
         
@@ -529,7 +562,8 @@ export default function App() {
 
       // Programmatically sign transaction voucher off-chain using the burner wallet
       log(`[BURNER_WALLET] Programmatically signing claim voucher authorization...`, 'success');
-      const message = `PayPer Voucher: ${wallet.address.toLowerCase()} to ${selectedListing.seller.toLowerCase()} for ${selectedListing.price.toString()} Wei. Output: ${outputText}`;
+      const cleanOutput = outputText.trim();
+      const message = `PayPer Voucher: ${wallet.address.toLowerCase()} to ${selectedListing.seller.toLowerCase()} for ${selectedListing.price.toString()} Wei. Output: ${cleanOutput}`;
       const signature = await new ethers.Wallet(wallet.privateKey).signMessage(message);
       log(`[BURNER_WALLET] Voucher signed: ${signature.substring(0, 24)}...`, 'success');
 
