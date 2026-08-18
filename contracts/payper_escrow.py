@@ -82,6 +82,8 @@ except ModuleNotFoundError:
     gl.Contract = LocalContract
 
 import json
+from eth_account import Account
+from eth_account.messages import encode_defunct
 
 # Fallback definition for local Python import compatibility in tests
 try:
@@ -125,12 +127,14 @@ class PayPerEscrow(gl.Contract):
     claims: TreeMap[str, str]            # Maps claim_id -> JSON string of Claim record
     claim_ids: DynArray[str]             # List of all claim IDs
     total_claims: u256
+    dispute_fee_wei: u256
 
     def __init__(self, registry_address: str) -> None:
         super().__init__()
         self.owner = gl.message.sender_address
         self.registry_address = Address(registry_address)
         self.total_claims = u256(0)
+        self.dispute_fee_wei = u256(1000000000000000000) # 1 GEN dispute fee
 
     @gl.public.write.payable
     def deposit(self) -> None:
@@ -171,13 +175,25 @@ class PayPerEscrow(gl.Contract):
         response_time_ms: int,
         input_payload: str,
         output_payload: str,
-        criteria: str
+        criteria: str,
+        signature_hex: str
     ) -> str:
         """Called by the seller to submit a claim for a performed task."""
         seller = gl.message.sender_address.as_hex.lower()
         buyer = Address(buyer_address).as_hex.lower()
         service_addr = Address(service_contract_address).as_hex.lower()
         amt = u256(amount_wei)
+
+        # Cryptographic Signature Verification of Voucher
+        msg_text = f"PayPer Voucher: {buyer} to {seller} for {int(amt)} Wei. Output: {output_payload}"
+        message = encode_defunct(text=msg_text)
+        try:
+            recovered_addr = Account.recover_message(message, signature=signature_hex)
+        except Exception as e:
+            raise gl.vm.UserError(f"Signature recovery failed: {str(e)}")
+            
+        assert recovered_addr.lower() == buyer, f"Voucher verification failed. Expected signer {buyer}, recovered {recovered_addr.lower()}"
+
         key = buyer + ":" + seller
 
         # Validate allowance and deposit
@@ -207,6 +223,7 @@ class PayPerEscrow(gl.Contract):
             "criteria": criteria,
             "status": "PENDING", # PENDING, SETTLED, DISPUTED, REFUNDED
             "timestamp": gl.message_raw["datetime"],
+            "signature": signature_hex,
             "verdict_reason": ""
         }
 
@@ -251,11 +268,18 @@ class PayPerEscrow(gl.Contract):
         caller = gl.message.sender_address.as_hex.lower()
         assert caller == claim["buyer"], "Only the buyer can dispute a claim"
 
+        # Deduct dispute fee from buyer deposit (mitigates validator spam vulnerability)
+        buyer_hex = claim["buyer"]
+        current_dep = self.deposits.get(buyer_hex, u256(0))
+        assert current_dep >= self.dispute_fee_wei, "Insufficient deposit balance for 1 GEN dispute fee"
+        self.deposits[buyer_hex] = current_dep - self.dispute_fee_wei
+
         # Adjudicate via GenLayer AI validator jury
         verdict = self._arbitrate(claim["input"], claim["output"], claim["criteria"])
         
         if verdict["verdict"] == "VALID":
-            # Seller wins dispute: Release funds
+            # Seller wins dispute: Release locked claim amount to seller
+            # Note: The dispute fee remains deducted from buyer's deposit (burnt/protocol revenue)
             claim["status"] = "SETTLED"
             claim["verdict_reason"] = verdict["reason"]
             self.claims[claim_id] = json.dumps(claim)
@@ -272,15 +296,14 @@ class PayPerEscrow(gl.Contract):
                 claim["amount"]
             )
         else:
-            # Buyer wins dispute: Refund buyer
+            # Buyer wins dispute: Refund buyer both the locked claim amount and the dispute fee
             claim["status"] = "REFUNDED"
             claim["verdict_reason"] = verdict["reason"]
             self.claims[claim_id] = json.dumps(claim)
             
             # Return funds to buyer's deposit
-            buyer_hex = claim["buyer"]
-            current_dep = self.deposits.get(buyer_hex, u256(0))
-            self.deposits[buyer_hex] = current_dep + u256(claim["amount"])
+            new_dep = self.deposits.get(buyer_hex, u256(0))
+            self.deposits[buyer_hex] = new_dep + u256(claim["amount"]) + self.dispute_fee_wei
 
             # Record execution failure in registry (use Address object registry_address directly)
             registry = gl.get_contract_at(self.registry_address)
@@ -359,3 +382,8 @@ Respond with ONLY this JSON format:
         """Retrieves details of a single claim."""
         assert claim_id in self.claims, "Claim ID not found"
         return json.loads(self.claims[claim_id])
+
+    @gl.public.view
+    def get_dispute_fee(self) -> u256:
+        """Returns the dispute fee in Wei."""
+        return self.dispute_fee_wei

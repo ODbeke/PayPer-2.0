@@ -412,9 +412,10 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 input_payload = body.get("input")
                 output_payload = body.get("output")
                 criteria = body.get("criteria")
+                signature = body.get("signature")
 
-                if not all([pkey, buyer, svc_addr, amount, resp_time, input_payload, output_payload, criteria]):
-                    self.send_json(400, {"error": "Missing claim parameters"})
+                if not all([pkey, buyer, svc_addr, amount, resp_time, input_payload, output_payload, criteria, signature]):
+                    self.send_json(400, {"error": "Missing claim parameters including signature"})
                     return
 
                 acc = Account.from_key(pkey)
@@ -429,7 +430,8 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                         int(resp_time),
                         input_payload,
                         output_payload,
-                        criteria
+                        criteria,
+                        signature
                     ]
                 )
                 self.send_json(200, {"tx_hash": tx})

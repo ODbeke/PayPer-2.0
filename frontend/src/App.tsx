@@ -475,11 +475,8 @@ export default function App() {
       
       // Programmatically sign transaction voucher off-chain using the burner wallet
       log(`[BURNER_WALLET] Programmatically signing claim voucher authorization...`, 'success');
-      const hashMsg = ethers.solidityPackedKeccak256(
-        ['address', 'address', 'uint256', 'string'],
-        [wallet.address, selectedListing.seller, selectedListing.price, outputText]
-      );
-      const signature = await new ethers.Wallet(wallet.privateKey).signMessage(ethers.getBytes(hashMsg));
+      const message = `PayPer Voucher: ${wallet.address.toLowerCase()} to ${selectedListing.seller.toLowerCase()} for ${selectedListing.price.toString()} Wei. Output: ${outputText}`;
+      const signature = await new ethers.Wallet(wallet.privateKey).signMessage(message);
       log(`[BURNER_WALLET] Voucher signed: ${signature.substring(0, 24)}... (Off-chain delay: 0.1ms)`, 'success');
 
       // Dispatching claim settlement to escrow contract
@@ -496,7 +493,8 @@ export default function App() {
             response_time_ms: durationMs,
             input: testInput,
             output: outputText,
-            criteria: testCriteria
+            criteria: testCriteria,
+            signature: signature
           })
         });
         const data = await res.json();
