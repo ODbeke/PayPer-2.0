@@ -1220,11 +1220,11 @@ export default function App() {
                   </div>
 
                   <div className="form-group-cell">
-                    <label className="label-cell">Service Endpoint Address (Or Identifier)</label>
+                    <label className="label-cell">Live API Endpoint URL</label>
                     <input
                       type="text"
                       className="input-cell"
-                      placeholder="0x... or mock address string"
+                      placeholder="https://your-service.up.railway.app"
                       value={sellerForm.endpoint}
                       onChange={(e) => setSellerForm({ ...sellerForm, endpoint: e.target.value })}
                       required
