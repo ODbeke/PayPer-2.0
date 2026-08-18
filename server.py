@@ -163,16 +163,17 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 formatted_services = []
                 for s in services:
                     formatted_services.append({
-                        "address": s["address"],
-                        "seller": s["seller"],
-                        "name": s["name"],
-                        "price": int(s["price"]),
-                        "category": s["category"],
-                        "description": s["description"],
-                        "total_calls": int(s["total_calls"]),
-                        "success_rate": int(s["success_rate"]),
-                        "rating": int(s["rating"]),
-                        "active": s["active"]
+                        "address": s.get("address") or s.get("service_address", ""),
+                        "endpoint": s.get("endpoint", ""),
+                        "seller": s.get("seller", ""),
+                        "name": s.get("name", ""),
+                        "price": int(s.get("price", 0)),
+                        "category": s.get("category", ""),
+                        "description": s.get("description", ""),
+                        "total_calls": int(s.get("total_calls", 0)),
+                        "success_rate": int(s.get("success_rate", 100)),
+                        "rating": int(s.get("rating", 50)),
+                        "active": s.get("active", True)
                     })
                 GET_CACHE[cache_key] = {
                     "time": now,
@@ -339,12 +340,13 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 body = self.get_post_data()
                 pkey = body.get("private_key")
                 svc_addr = body.get("service_address")
+                endpoint = body.get("endpoint")
                 name = body.get("name")
                 price = body.get("price")
                 category = body.get("category")
                 description = body.get("description")
 
-                if not all([pkey, svc_addr, name, price, category, description]):
+                if not all([pkey, svc_addr, endpoint, name, price, category, description]):
                     self.send_json(400, {"error": "Missing registration parameters"})
                     return
 
@@ -356,7 +358,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     address=deployed_contracts["registry"],
                     function_name="register_service",
                     account=acc,
-                    args=[svc_addr, name, int(price), category, description]
+                    args=[svc_addr, endpoint, name, int(price), category, description]
                 )
                 self.send_json(200, {"tx_hash": tx})
                 return

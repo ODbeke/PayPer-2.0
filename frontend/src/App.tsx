@@ -21,6 +21,7 @@ interface ContractConfig {
 
 interface ServiceListing {
   address: string;
+  endpoint: string;
   seller: string;
   name: string;
   price: number;
@@ -419,12 +420,14 @@ export default function App() {
     const priceWei = ethers.parseEther(sellerForm.pricePerCall).toString();
     log(`Registering service "${sellerForm.name}" in directory...`, 'info');
     try {
+      const randomAddress = ethers.Wallet.createRandom().address;
       const res = await fetch(`${API_BASE}/registry/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           private_key: wallet.privateKey,
-          service_address: sellerForm.endpoint, // use endpoint string as identifier
+          service_address: randomAddress,
+          endpoint: sellerForm.endpoint,
           name: sellerForm.name,
           price: priceWei,
           category: sellerForm.category.toLowerCase(),
@@ -457,70 +460,108 @@ export default function App() {
     setTestResult(null);
     log(`[GOAL_RUNNER] Invoking service: ${selectedListing.name} (Price: ${selectedListing.price / 10**18} GEN)...`, 'info');
     
-    // Simulate off-chain LLM processing delay
-    setTimeout(async () => {
-      let outputText = "";
-      const isSummarize = selectedListing.category === 'summarization';
-      
-      if (isSummarize) {
-        outputText = "Layer 2 solutions improve blockchain scaling by processing transactions off-chain via Rollups. The finalized state transitions are then committed securely to Layer 1.";
+    const startTime = Date.now();
+    let outputText = "";
+    let durationMs = 0;
+
+    try {
+      if (selectedListing.endpoint && selectedListing.endpoint.startsWith("http")) {
+        log(`[OFF_CHAIN] Calling live API endpoint: ${selectedListing.endpoint}...`, 'info');
+        
+        // Build a mock payment authorization header matching the payper-gemini-service schema
+        const fakePaymentAuth = {
+          from: wallet.address,
+          to: selectedListing.seller,
+          amount: selectedListing.price.toString(),
+          validBefore: Math.floor(Date.now() / 1000) + 3600,
+          nonce: "0x" + "0".repeat(64),
+          signature: "0x" + "0".repeat(130)
+        };
+
+        const response = await fetch(selectedListing.endpoint, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-payment-auth': JSON.stringify(fakePaymentAuth)
+          },
+          body: JSON.stringify({ prompt: testInput })
+        });
+        
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error status: ${response.status}`);
+        }
+        
+        const resData = await response.json();
+        if (resData.success && resData.data && resData.data.text) {
+          outputText = resData.data.text;
+          durationMs = Date.now() - startTime;
+          log(`[OFF_CHAIN] Received live response from Gemini: "${outputText.substring(0, 80)}..." in ${durationMs}ms`, 'success');
+        } else {
+          throw new Error("Invalid response format from live service");
+        }
       } else {
-        outputText = "Code Analysis: No critical vulnerabilities found. 2 warnings: Unused state variable at line 42, missing return type on line 87.";
+        // Fallback mock simulation
+        const isSummarize = selectedListing.category === 'summarization';
+        if (isSummarize) {
+          outputText = "Layer 2 solutions improve blockchain scaling by processing transactions off-chain via Rollups. The finalized state transitions are then committed securely to Layer 1.";
+        } else {
+          outputText = "Code Analysis: No critical vulnerabilities found. 2 warnings: Unused state variable at line 42, missing return type on line 87.";
+        }
+        durationMs = 120 + Math.floor(Math.random() * 80);
+        await new Promise(resolve => setTimeout(resolve, durationMs));
+        log(`[OFF_CHAIN] Received output payload from seller in ${durationMs}ms.`, 'success');
       }
 
-      const durationMs = 120 + Math.floor(Math.random() * 80);
-      log(`[OFF_CHAIN] Received output payload from seller in ${durationMs}ms.`, 'success');
-      
       // Programmatically sign transaction voucher off-chain using the burner wallet
       log(`[BURNER_WALLET] Programmatically signing claim voucher authorization...`, 'success');
       const message = `PayPer Voucher: ${wallet.address.toLowerCase()} to ${selectedListing.seller.toLowerCase()} for ${selectedListing.price.toString()} Wei. Output: ${outputText}`;
       const signature = await new ethers.Wallet(wallet.privateKey).signMessage(message);
-      log(`[BURNER_WALLET] Voucher signed: ${signature.substring(0, 24)}... (Off-chain delay: 0.1ms)`, 'success');
+      log(`[BURNER_WALLET] Voucher signed: ${signature.substring(0, 24)}...`, 'success');
 
       // Dispatching claim settlement to escrow contract
       log(`[ESCROW] Submitting signed claim to on-chain PayPerEscrow contract...`, 'info');
-      try {
-        const res = await fetch(`${API_BASE}/escrow/claim`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            private_key: wallet.privateKey,
-            buyer: wallet.address,
-            service_address: selectedListing.address,
-            amount: selectedListing.price.toString(),
-            response_time_ms: durationMs,
-            input: testInput,
-            output: outputText,
-            criteria: testCriteria,
-            signature: signature
-          })
+      
+      const res = await fetch(`${API_BASE}/escrow/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          private_key: wallet.privateKey,
+          buyer: wallet.address,
+          service_address: selectedListing.address,
+          amount: selectedListing.price.toString(),
+          response_time_ms: durationMs,
+          input: testInput,
+          output: outputText,
+          criteria: testCriteria,
+          signature: signature
+        })
+      });
+      const data = await res.json();
+      if (data.tx_hash) {
+        log(`[ESCROW] On-chain payment claim logged. Claim status: PENDING. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
+        
+        // Get claim id from list
+        const claimsRes = await fetch(`${API_BASE}/escrow/claims`);
+        const claimsData = await claimsRes.json();
+        const latestClaim = claimsData[0]; // Newest is first
+        
+        setTestResult({
+          output: outputText,
+          time: durationMs,
+          claimId: latestClaim ? latestClaim.id : undefined
         });
-        const data = await res.json();
-        if (data.tx_hash) {
-          log(`[ESCROW] On-chain payment claim logged. Claim status: PENDING. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
-          
-          // Get claim id from list
-          const claimsRes = await fetch(`${API_BASE}/escrow/claims`);
-          const claimsData = await claimsRes.json();
-          const latestClaim = claimsData[0]; // Newest is first
-          
-          setTestResult({
-            output: outputText,
-            time: durationMs,
-            claimId: latestClaim ? latestClaim.id : undefined
-          });
-          updateBalancesAndData();
-        } else {
-          log(`[ESCROW] Claim failed: ${data.error}`, 'error');
-          setErrorMsg(data.error);
-        }
-      } catch (e: any) {
-        log(`[ESCROW] Submission error: ${e.message}`, 'error');
-        setErrorMsg(e.message);
-      } finally {
-        setLoading(prev => ({ ...prev, execute: false }));
+        updateBalancesAndData();
+      } else {
+        log(`[ESCROW] Claim failed: ${data.error}`, 'error');
+        setErrorMsg(data.error);
       }
-    }, 1500);
+    } catch (e: any) {
+      log(`[ESCROW] Execution / Submission error: ${e.message}`, 'error');
+      setErrorMsg(e.message);
+    } finally {
+      setLoading(prev => ({ ...prev, execute: false }));
+    }
   };
 
   const handleReleasePayment = async (claimId: string) => {

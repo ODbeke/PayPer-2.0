@@ -61,6 +61,7 @@ def test_payper_marketplace_escrow_lifecycle():
     rc_reg = registry.connect(seller).register_service(
         args=[
             service_contract_address,
+            "http://localhost:4020",
             "Summarization Service",
             price_wei,
             "summarization",

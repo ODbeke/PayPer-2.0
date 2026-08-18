@@ -114,6 +114,7 @@ class PayPerRegistry(gl.Contract):
     def register_service(
         self,
         service_address: str,
+        endpoint: str,
         name: str,
         price_wei: int,
         category: str,
@@ -132,6 +133,7 @@ class PayPerRegistry(gl.Contract):
 
         listing = {
             "service_address": clean_addr,
+            "endpoint": str(endpoint).strip(),
             "seller": seller_hex,
             "name": str(name).strip(),
             "price": int(price_wei),
