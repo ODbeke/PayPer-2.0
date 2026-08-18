@@ -261,9 +261,19 @@ export default function App() {
         const data = await res.json();
         if (Array.isArray(data)) {
           setListings(data);
-          // Set network stats
-          setTotalTxCount(data.reduce((acc, curr) => acc + curr.total_calls, 0));
-          setTotalVolume(data.reduce((acc, curr) => acc + (curr.total_calls * (curr.price / 10**18)), 0));
+          // Fetch real on-chain stats from registry
+          try {
+            const statsRes = await fetch(`${API_BASE}/registry/stats`);
+            const statsData = await statsRes.json();
+            if (statsData.total_transactions !== undefined) {
+              setTotalTxCount(statsData.total_transactions);
+              setTotalVolume(Number(statsData.total_gen_volume) / 10**18);
+            }
+          } catch (statErr) {
+            // Fallback to local sum if stats endpoint fails
+            setTotalTxCount(data.reduce((acc, curr) => acc + curr.total_calls, 0));
+            setTotalVolume(data.reduce((acc, curr) => acc + (curr.total_calls * (curr.price / 10**18)), 0));
+          }
         }
       } catch (e) {
         setFetchError("Failed to fetch registry data.");

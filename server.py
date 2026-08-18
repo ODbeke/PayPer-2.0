@@ -182,6 +182,24 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 self.send_json(200, formatted_services)
                 return
 
+            elif path == "/api/registry/stats":
+                if not deployed_contracts["registry"]:
+                    self.send_json(200, {"total_transactions": 0, "total_gen_volume": "0", "total_services": 0})
+                    return
+                try:
+                    stats = client.read_contract(
+                        address=deployed_contracts["registry"],
+                        function_name="get_global_stats"
+                    )
+                    self.send_json(200, {
+                        "total_transactions": int(stats.get("total_transactions", 0)),
+                        "total_gen_volume": str(stats.get("total_gen_volume", "0")),
+                        "total_services": int(stats.get("total_services", 0))
+                    })
+                except Exception as e:
+                    self.send_json(200, {"total_transactions": 0, "total_gen_volume": "0", "total_services": 0})
+                return
+
             elif path == "/api/escrow/deposit":
                 user = query.get("user", [None])[0]
                 if not user:
