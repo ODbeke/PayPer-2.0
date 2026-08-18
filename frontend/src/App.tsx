@@ -281,9 +281,7 @@ export default function App() {
 
   // Live polling
   useEffect(() => {
-    const currentWallet = walletRef.current;
-    const currentConfig = configRef.current;
-    if (currentWallet && currentConfig && currentConfig.registry) {
+    if (wallet?.address && config?.registry) {
       updateBalancesAndData();
       const interval = setInterval(updateBalancesAndData, 10000);
       return () => clearInterval(interval);
