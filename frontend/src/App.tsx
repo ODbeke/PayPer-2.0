@@ -479,13 +479,17 @@ export default function App() {
         log(`[OFF_CHAIN] Calling live API endpoint: ${selectedListing.endpoint}...`, 'info');
         
         // Build a mock payment authorization header matching the payper-gemini-service schema
+        const randomBytes = Array.from({length: 32}, () => Math.floor(Math.random()*256).toString(16).padStart(2, '0')).join('');
+        const randNonce = "0x" + randomBytes;
+        const dummySig = await new ethers.Wallet(wallet.privateKey).signMessage("PayPer Challenge");
+
         const fakePaymentAuth = {
           from: wallet.address,
           to: selectedListing.seller,
           amount: selectedListing.price.toString(),
           validBefore: Math.floor(Date.now() / 1000) + 3600,
-          nonce: "0x" + "0".repeat(64),
-          signature: "0x" + "0".repeat(130)
+          nonce: randNonce,
+          signature: dummySig
         };
 
         const response = await fetch(selectedListing.endpoint, {
