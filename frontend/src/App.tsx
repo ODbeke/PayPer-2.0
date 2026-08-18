@@ -553,17 +553,44 @@ export default function App() {
       });
       const data = await res.json();
       if (data.tx_hash) {
-        log(`[ESCROW] On-chain payment claim logged. Claim status: PENDING. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
+        log(`[ESCROW] On-chain payment claim logged. Tx: ${data.tx_hash.substring(0, 16)}...`, 'success');
         
-        // Get claim id from list
-        const claimsRes = await fetch(`${API_BASE}/escrow/claims`);
-        const claimsData = await claimsRes.json();
-        const latestClaim = claimsData[0]; // Newest is first
+        // Poll for the new claim on-chain (handles RPC read-node sync lags)
+        let foundClaimId = undefined;
+        log(`[ESCROW] Querying blockchain for registered claim record...`, 'info');
+        
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          try {
+            const claimsRes = await fetch(`${API_BASE}/escrow/claims`);
+            const claimsData = await claimsRes.json();
+            
+            if (Array.isArray(claimsData)) {
+              // Find the claim matching this buyer, seller, and price
+              const match = claimsData.find((c: any) => 
+                c.buyer.toLowerCase() === wallet.address.toLowerCase() &&
+                c.seller.toLowerCase() === selectedListing.seller.toLowerCase() &&
+                c.amount.toString() === selectedListing.price.toString()
+              );
+              
+              if (match) {
+                foundClaimId = match.id;
+                log(`[ESCROW] Claim record found on-chain! ID: ${foundClaimId}`, 'success');
+                break;
+              }
+            }
+          } catch (e) {
+            // Ignore fetch error and retry
+          }
+          if (attempt < 5) {
+            log(`[ESCROW] Claim not visible yet. Retrying in 1s (Attempt ${attempt}/5)...`, 'info');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
         
         setTestResult({
           output: outputText,
           time: durationMs,
-          claimId: latestClaim ? latestClaim.id : undefined
+          claimId: foundClaimId
         });
         updateBalancesAndData();
       } else {
