@@ -4,6 +4,7 @@ import json
 import time
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
 GET_CACHE = {}
@@ -483,10 +484,13 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_error_json(e)
 
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
 def run(port=5001):
     load_config()
     server_address = ('', port)
-    httpd = HTTPServer(server_address, GenLayerAPIHandler)
+    httpd = ThreadedHTTPServer(server_address, GenLayerAPIHandler)
     print(f"Backend API server running on port {port}...")
     try:
         httpd.serve_forever()
