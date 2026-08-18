@@ -455,6 +455,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                         signature
                     ]
                 )
+                client.wait_for_transaction_receipt(tx)
                 self.send_json(200, {"tx_hash": tx})
                 return
 
