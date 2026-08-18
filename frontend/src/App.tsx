@@ -542,6 +542,7 @@ export default function App() {
         body: JSON.stringify({
           private_key: wallet.privateKey,
           buyer: wallet.address,
+          seller: selectedListing.seller,
           service_address: selectedListing.address,
           amount: selectedListing.price.toString(),
           response_time_ms: durationMs,

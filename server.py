@@ -427,6 +427,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 body = self.get_post_data()
                 pkey = body.get("private_key")
                 buyer = body.get("buyer")
+                seller = body.get("seller")
                 svc_addr = body.get("service_address")
                 amount = body.get("amount")
                 resp_time = body.get("response_time_ms")
@@ -435,7 +436,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                 criteria = body.get("criteria")
                 signature = body.get("signature")
 
-                if not all([pkey, buyer, svc_addr, amount, resp_time, input_payload, output_payload, criteria, signature]):
+                if not all([pkey, buyer, seller, svc_addr, amount, resp_time, input_payload, output_payload, criteria, signature]):
                     self.send_json(400, {"error": "Missing claim parameters including signature"})
                     return
 
@@ -446,6 +447,7 @@ class GenLayerAPIHandler(BaseHTTPRequestHandler):
                     account=acc,
                     args=[
                         buyer,
+                        seller,
                         svc_addr,
                         int(amount),
                         int(resp_time),

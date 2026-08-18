@@ -168,6 +168,7 @@ class PayPerEscrow(gl.Contract):
     def claim_payment(
         self,
         buyer_address: str,
+        seller_address: str,
         service_contract_address: str,
         amount_wei: int,
         response_time_ms: int,
@@ -177,7 +178,7 @@ class PayPerEscrow(gl.Contract):
         signature_hex: str
     ) -> str:
         """Called by the seller to submit a claim for a performed task."""
-        seller = gl.message.sender_address.as_hex.lower()
+        seller = Address(seller_address).as_hex.lower()
         buyer = Address(buyer_address).as_hex.lower()
         service_addr = Address(service_contract_address).as_hex.lower()
         amt = u256(amount_wei)
