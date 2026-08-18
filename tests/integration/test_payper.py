@@ -94,6 +94,14 @@ def test_payper_marketplace_escrow_lifecycle():
 
     # 4. Seller claims payment for a successful task execution
     claim_val = price_wei
+    output_payload = "This is the summary output of the document."
+    
+    # Reconstruct same voucher string to sign off-chain using the buyer account
+    from eth_account.messages import encode_defunct
+    msg_text = f"PayPer Voucher: {buyer.address.lower()} to {seller.address.lower()} for {claim_val} Wei. Output: {output_payload}"
+    sig_obj = buyer.sign_message(encode_defunct(text=msg_text))
+    sig_hex = f"0x{sig_obj.signature.hex()}"
+    
     rc_claim = escrow.connect(seller).claim_payment(
         args=[
             buyer.address,
@@ -101,8 +109,9 @@ def test_payper_marketplace_escrow_lifecycle():
             claim_val,
             180, # response_time_ms
             "Please summarize this long document.", # input
-            "This is the summary output of the document.", # output
-            "Must return a summary of at least 1 sentence." # criteria
+            output_payload, # output
+            "Must return a summary of at least 1 sentence.", # criteria
+            sig_hex
         ]
     ).transact()
     assert tx_execution_succeeded(rc_claim)
