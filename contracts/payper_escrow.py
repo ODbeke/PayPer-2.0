@@ -82,8 +82,6 @@ except ModuleNotFoundError:
     gl.Contract = LocalContract
 
 import json
-from eth_account import Account
-from eth_account.messages import encode_defunct
 
 # Fallback definition for local Python import compatibility in tests
 try:
@@ -185,6 +183,8 @@ class PayPerEscrow(gl.Contract):
         amt = u256(amount_wei)
 
         # Cryptographic Signature Verification of Voucher
+        from eth_account import Account
+        from eth_account.messages import encode_defunct
         msg_text = f"PayPer Voucher: {buyer} to {seller} for {int(amt)} Wei. Output: {output_payload}"
         message = encode_defunct(text=msg_text)
         try:
